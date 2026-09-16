@@ -71,6 +71,58 @@ lcfp = listCFPExperiments(
 unique_exp_names = sorted(set(cfp + lcfp))
 
 
+def formatFeatureName(name: str) -> str:
+    feature_name_map = {
+        "rdkit": "RDKit",
+        "mordred": "Mordred",
+        "maccs": "MACCS",
+        "morgan": "Morgan",
+        "chemberta": "ChemBERTa",
+        "chemberta-dc": "ChemBERTa-DC",
+        "molformer-ibm": "MolFormer-IBM",
+        "molformer-dc": "MolFormer-DC",
+        "selformer": "SELFormer",
+        "ft-scaffold-molformer-ibm": "Scaffold FT MolFormer-IBM",
+        "ft-scaffold-molformer-dc": "Scaffold FT MolFormer-DC",
+        "ft-scaffold-selformer": "Scaffold FT SELFormer",
+        "ft-random-molformer-ibm": "Random FT MolFormer-IBM",
+        "ft-random-molformer-dc": "Random FT MolFormer-DC",
+        "ft-random-selformer": "Random FT SELFormer",
+    }
+    key = str(name).strip().lower()
+    return feature_name_map.get(key, key.replace("-", " ").replace("_", " ").title())
+
+
+def formatMetricName(name: str) -> str:
+    metric_name = str(name).strip()
+    prefix = ""
+    if metric_name.startswith("avg_"):
+        prefix = "Average "
+        metric_name = metric_name[4:]
+    metric_name = metric_name.replace("_", " ")
+    metric_name_map = {
+        "auc": "AUC",
+        "auc ovr": "AUC OVR",
+        "mcc": "MCC",
+        "rmse": "RMSE",
+        "r2": "R2",
+        "ppv": "PPV",
+        "npv": "NPV",
+    }
+    formatted = metric_name_map.get(metric_name.lower(), metric_name)
+    return f"{prefix}{formatted}"
+
+
+def formatCFPTitle(exp_name: str, metric: str) -> str:
+    exp_parts = exp_name.split("_")
+    pred = exp_parts[1] if len(exp_parts) > 1 else "unknown"
+    tr = exp_parts[3] if len(exp_parts) > 3 else "unknown"
+    return (
+        f"{formatFeatureName(pred)} Predicted, "
+        f"{formatFeatureName(tr)} Trained ({formatMetricName(metric)})"
+    )
+
+
 def plotGroupRadar(
     group_perf_by_task: dict[str, pd.DataFrame],
     plot_dir: str | Path,
@@ -80,10 +132,6 @@ def plotGroupRadar(
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
-
-    exp_parts = exp_name.split("_")
-    pred = exp_parts[1] if len(exp_parts) > 1 else "unknown"
-    tr = exp_parts[3] if len(exp_parts) > 3 else "unknown"
 
     palette = sns.color_palette("tab10")
     c1, c2 = (
@@ -112,9 +160,7 @@ def plotGroupRadar(
             print(f"Skipping radar metric '{val}': no finite values.")
             continue
 
-        gr_title = (
-            f"{pred.capitalize()} Prediction " f"({tr.capitalize()} trained): {val}"
-        )
+        gr_title = formatCFPTitle(exp_name, val)
 
         v.plotGroupRadar(
             radar_df,
@@ -209,11 +255,8 @@ def plotGroupMemberBars(
 
     exp_parts = exp_name.split("_")
     pred = exp_parts[1] if len(exp_parts) > 1 else "unknown"
-    tr = exp_parts[3] if len(exp_parts) > 3 else "unknown"
 
-    title = (
-        f"{group_name} " f"(Trained: {tr.capitalize()}, Predicted: {pred.capitalize()})"
-    )
+    title = f"{formatCFPTitle(exp_name, group_name)}"
 
     for task_name, task_cfg in CFP_ANALYSIS_METRICS.items():
         print(f"Task: {task_name}")
@@ -287,10 +330,6 @@ def plotFullTaskBar(
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
 
-    exp_parts = exp_name.split("_")
-    pred = exp_parts[1] if len(exp_parts) > 1 else "unknown"
-    tr = exp_parts[3] if len(exp_parts) > 3 else "unknown"
-
     for task_name, task_cfg in CFP_ANALYSIS_METRICS.items():
         print(f"Task: {task_name}")
 
@@ -320,10 +359,7 @@ def plotFullTaskBar(
 
         task_df = task_df.sort_values(metric_col, ascending=False)
 
-        title = (
-            f"Full {task_name.capitalize()} Task Performance "
-            f"(Trained: {tr.capitalize()}, Predicted: {pred.capitalize()})"
-        )
+        title = formatCFPTitle(exp_name, metric_col)
 
         plt.figure(figsize=(12, 6))
         plt.bar(task_df.index.astype(str), task_df[metric_col])
@@ -385,7 +421,7 @@ def plotGroupTaskFractionBars(
         ax.invert_yaxis()
         ax.set_xlabel("Number of descriptors")
         ax.set_ylabel("Feature group")
-        ax.set_title(f"{exp_name}: {task_name} feature groups split by {metric}")
+        ax.set_title(formatCFPTitle(exp_name, metric))
         ax.legend(loc="lower right")
 
         for i, (_, row) in enumerate(plot_df.iterrows()):

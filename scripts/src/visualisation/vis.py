@@ -412,14 +412,14 @@ class Visualise:
         title: str = "Radar Plot",
         figsize: tuple | None = (15, 11),
         title_fontsize: int = 16,
-        label_fontsize: int = 11,
+        label_fontsize: int = 10,
         tick_fontsize: int = 9,
         save_plot: bool = False,
         save_path: Union[str, Path] = None,
         save_fname: str = "group_radar",
         dpi: int = 1200,
-        wrap_labels: bool = True,
-        wrap_width: int = 14,
+        wrap_labels: bool = False,
+        wrap_width: int = 18,
         rotate_labels: bool = True,
         metadata: dict = {},
         c1=None,
@@ -487,7 +487,8 @@ class Visualise:
 
         labels = group_perf_df.index.astype(str).tolist()
 
-        # Optional: make labels nicer (break underscores and wrap)
+        # Keep radar labels outside the polar axes. Matplotlib's built-in polar
+        # tick labels overlap once labels are rotated and wrapped.
         pretty_labels = []
         for lab in labels:
             lab = lab.replace("_rdkit", "").replace("_mordred", "")
@@ -529,26 +530,46 @@ class Visualise:
         )
 
         ax1.set_xticks(angles[:-1])
-        ax1.set_xticklabels(pretty_labels, fontsize=label_fontsize, fontweight="bold")
-
-        # Rotate labels so they follow the circle (reduces overlap a lot)
-        if rotate_labels:
-            for lbl, ang in zip(ax1.get_xticklabels(), angles[:-1]):
-                ang_deg = np.degrees(ang)
-                # keep text upright-ish
-                if 90 < ang_deg < 270:
-                    lbl.set_rotation(ang_deg + 180)
-                    lbl.set_ha("right")
-                else:
-                    lbl.set_rotation(ang_deg)
-                    lbl.set_ha("left")
-                lbl.set_va("center")
+        ax1.set_xticklabels([])
+        label_radius = 1.18
+        for label, angle in zip(pretty_labels, angles[:-1]):
+            x = np.cos(angle)
+            y = np.sin(angle)
+            if abs(x) < 0.15:
+                ha = "center"
+            elif x > 0:
+                ha = "left"
+            else:
+                ha = "right"
+            if abs(y) < 0.15:
+                va = "center"
+            elif y > 0:
+                va = "bottom"
+            else:
+                va = "top"
+            rotation = 0
+            if rotate_labels:
+                rotation = np.degrees(angle)
+                if 90 < rotation < 270:
+                    rotation += 180
+            ax1.text(
+                angle,
+                label_radius,
+                label,
+                transform=ax1.get_xaxis_transform(),
+                fontsize=label_fontsize,
+                fontweight="bold",
+                ha=ha,
+                va=va,
+                rotation=rotation,
+                rotation_mode="anchor",
+                clip_on=False,
+            )
 
         # Put c1 radial labels at top
         ax1.set_rlabel_position(90)
 
-        # Slightly pad the plot from the figure edge
-        ax1.tick_params(axis="x", pad=14)
+        ax1.tick_params(axis="x", pad=20)
 
         # -------------------------
         # Axis 2 (0.5–1 scale)
@@ -592,7 +613,7 @@ class Visualise:
             handles1 + handles2,
             labels1 + labels2,
             loc="upper right",
-            bbox_to_anchor=(1.18, 1.12),
+            bbox_to_anchor=(1.10, 1.14),
             fontsize=label_fontsize,
             frameon=False,
         )
@@ -600,7 +621,7 @@ class Visualise:
         ax1.set_title(title, fontsize=title_fontsize, fontweight="bold", pad=28)
 
         # Layout tweak (polar plots often need manual spacing)
-        plt.subplots_adjust(top=0.88, bottom=0.08, left=0.08, right=0.92)
+        plt.subplots_adjust(top=0.82, bottom=0.16, left=0.16, right=0.84)
 
         self._savePlot(
             save_plot=save_plot,
