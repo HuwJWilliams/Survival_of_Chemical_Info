@@ -76,6 +76,7 @@ def plotGroupRadar(
     plot_dir: str | Path,
     exp_name: str,
     task_type: str = "regression",
+    dpi: int = 400,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -121,6 +122,7 @@ def plotGroupRadar(
             save_plot=True,
             save_path=plot_dir,
             save_fname=f"{exp_name}_group_radar_{task_type}_{val}",
+            dpi=dpi,
             c1=c1,
             c2=c2,
         )
@@ -280,6 +282,7 @@ def plotFullTaskBar(
     df: pd.DataFrame,
     plot_dir: str | Path,
     exp_name: str,
+    dpi: int = 400,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -331,7 +334,7 @@ def plotFullTaskBar(
         plt.tight_layout()
 
         save_path = plot_dir / f"{exp_name}_full_task_bar_{task_name}_{metric_col}.png"
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.savefig(save_path, dpi=dpi, bbox_inches="tight")
         plt.close()
 
         print(f"Saved full task bar to: {save_path}")
@@ -342,6 +345,7 @@ def plotGroupTaskFractionBars(
     plot_dir: str | Path,
     exp_name: str,
     threshold: float = 0.7,
+    dpi: int = 400,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -398,7 +402,7 @@ def plotGroupTaskFractionBars(
             plot_dir
             / f"{exp_name}_group_task_fraction_{task_name}_lt{threshold_label}.png"
         )
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.savefig(save_path, dpi=dpi, bbox_inches="tight")
         plt.close(fig)
 
         print(f"Saved group-task fraction bar plot to: {save_path}")
@@ -411,6 +415,7 @@ def plotGroupTaskFractionSummary(
     plot_dir: str | Path,
     threshold: float = 0.7,
     excl_cols: list[str] | None = None,
+    dpi: int = 400,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -511,6 +516,7 @@ def plotGroupTaskFractionSummary(
         plot_dir=plot_dir,
         exp_name=exp_name,
         threshold=threshold,
+        dpi=dpi,
     )
 
     return summary_df
@@ -665,6 +671,7 @@ def runCFPAnalysisForPerformanceDF(
         plot_dir=exp_dir,
         exp_name=exp_name,
         task_type=args.radar_task,
+        dpi=args.dpi,
     )
 
     if not args.skip_group_member_bars:
@@ -682,6 +689,7 @@ def runCFPAnalysisForPerformanceDF(
         df=exp_perf_df,
         plot_dir=exp_dir,
         exp_name=exp_name,
+        dpi=args.dpi,
     )
 
     plotGroupTaskFractionSummary(
@@ -691,6 +699,7 @@ def runCFPAnalysisForPerformanceDF(
         plot_dir=exp_dir,
         threshold=0.7,
         excl_cols=excl_cols,
+        dpi=args.dpi,
     )
 
     return excl_cols

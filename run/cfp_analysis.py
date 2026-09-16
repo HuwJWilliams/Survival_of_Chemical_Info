@@ -115,6 +115,13 @@ parser.add_argument(
     help="Skip individual descriptor group/member bar plots",
 )
 
+parser.add_argument(
+    "--dpi",
+    type=int,
+    default=1200,
+    help="DPI for saved CFP plot PNGs",
+)
+
 args = parser.parse_args()
 
 
