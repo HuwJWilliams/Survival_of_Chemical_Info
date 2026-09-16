@@ -765,7 +765,17 @@ if run_6:
         Input feature paths may be glob patterns, as in the pipeline configuration.
         Only classification models are extracted. Load only your trusted archive.
         """
+        from datetime import datetime
+        from time import perf_counter
+
+        started = perf_counter()
+
+        def update(message):
+            elapsed = perf_counter() - started
+            print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [ROC +{elapsed:.1f}s] {message}", flush=True)
+
         experiment_dir = Path(experiment_dir)
+        update(f"Reading descriptor results: {experiment_dir / 'pred_mordred_tr_rdkit.csv'}")
         results = pd.read_csv(experiment_dir / "pred_mordred_tr_rdkit.csv", index_col=0)
         classification = results.loc[results["task_type"].isin(
             ["binary_classification", "multiclass_classification"]
@@ -773,27 +783,36 @@ if run_6:
         output_dir = experiment_dir / "classification_roc"
         output_dir.mkdir(parents=True, exist_ok=True)
         classification.to_csv(output_dir / "classification_descriptors.csv")
+        update(f"Found {len(classification)} classification descriptors: "
+               f"{classification['task_type'].value_counts().to_dict()}. Output: {output_dir}")
         if classification.empty:
-            print("No classification descriptors found.")
+            update("No classification descriptors found.")
             return pd.DataFrame()
 
         def load_features(path):
+            update(f"Finding feature files: {path}")
             files = sorted(glob(str(path)))
             if not files and str(path).endswith("_*.csv"):
                 files = sorted(glob(str(path).replace("_*.csv", ".csv")))
             if not files:
                 raise FileNotFoundError(f"No feature files matched {path}")
-            frame = pd.concat([
-                pd.read_csv(p, index_col="ID", low_memory=False) for p in files
-            ])
+            frames = []
+            for file_number, p in enumerate(files, 1):
+                update(f"Reading feature file {file_number}/{len(files)}: {p}")
+                frames.append(pd.read_csv(p, index_col="ID", low_memory=False))
+                update(f"Loaded {frames[-1].shape[0]:,} rows, {frames[-1].shape[1]:,} columns")
+            frame = pd.concat(frames)
+            del frames
             frame.index = frame.index.astype(str)
             if not frame.index.is_unique:
                 raise ValueError(f"Duplicate molecule IDs in {path}")
             # Match run/run_cfp.py preprocessing, including target imputation.
+            update(f"Cleaning features: {frame.shape[0]:,} rows, {frame.shape[1]:,} columns")
             frame, _ = cleanFeatureDF(
                 frame, max_nan_fraction=0.10, drop_constant_cols=True,
                 median_impute=True, correlation_threshold=None,
             )
+            update(f"Cleaning complete: {frame.shape[0]:,} rows, {frame.shape[1]:,} columns")
             return frame
 
         configured = FULL_PATHING.get("full_features", {}).get("fit_lipinski", {})
@@ -801,18 +820,25 @@ if run_6:
         targets = load_features(mordred_path if mordred_path is not None else configured["mordred"])
         common_ids = features.index.intersection(targets.index)
         features, targets = features.loc[common_ids], targets.loc[common_ids]
+        update(f"Aligned RDKit and Mordred data: {len(common_ids):,} molecule IDs")
         model_dir = output_dir / "extracted_models"
         model_dir.mkdir(exist_ok=True)
         metric_rows, status_rows = [], []
         archive_path = experiment_dir / "training_data" / "models.tar.gz"
 
+        update(f"Scanning model archive: {archive_path}")
         with tarfile.open(archive_path, "r:gz") as archive:
             members = {}
-            for member in archive.getmembers():
+            for member_number, member in enumerate(archive, 1):
                 if member.isfile():
                     members.setdefault(Path(member.name).name, []).append(member)
+                if member_number % 100 == 0:
+                    update(f"Scanned {member_number:,} archive entries")
+            update(f"Archive scan complete: {sum(map(len, members.values())):,} regular files")
             for number, (descriptor, result) in enumerate(classification.iterrows(), 1):
                 descriptor = str(descriptor).strip()
+                descriptor_started = perf_counter()
+                update(f"[{number}/{len(classification)}] Starting {descriptor} ({result['task_type']})")
                 fig = None
                 try:
                     matches = members.get(f"{descriptor}_model.pkl.gz", [])
@@ -823,9 +849,12 @@ if run_6:
                     safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", descriptor)
                     stem = f"{number:04d}_{safe_name}"
                     model_path = model_dir / f"{stem}_model.pkl.gz"
+                    update(f"Extracting {matches[0].name} ({matches[0].size / 1024**2:.1f} MiB)")
                     with archive.extractfile(matches[0]) as source, model_path.open("wb") as dest:
                         shutil.copyfileobj(source, dest)
+                    update(f"Loading model: {model_path}")
                     model = joblib.load(model_path)
+                    update("Model loaded; aligning predictors and filtering evaluation rows")
                     if not hasattr(model, "feature_names_in_"):
                         raise ValueError("Model lacks feature names; cannot verify predictor order")
                     x = features.loc[:, list(model.feature_names_in_)]
@@ -841,13 +870,17 @@ if run_6:
                     x, y = x.loc[keep], y.loc[keep]
                     if y.nunique() < 2:
                         raise ValueError("Fewer than two classes available for ROC")
+                    update(f"Predicting probabilities for {len(y):,} rows, "
+                           f"{x.shape[1]:,} predictors, classes={classes.tolist()}")
                     probabilities = np.asarray(model.predict_proba(x))
+                    update("Prediction complete; calculating ROC curves")
                     fig, ax = plt.subplots(figsize=(8, 6))
                     descriptor_rows = []
                     indices = [1] if expected_binary else range(len(classes))
                     for j in indices:
                         binary_y = (y.to_numpy() == classes[j]).astype(int)
                         if np.unique(binary_y).size < 2:
+                            update(f"Class {classes[j]}: skipping ROC (class absent or no negatives)")
                             descriptor_rows.append(dict(
                                 descriptor=descriptor, task_type=result["task_type"],
                                 class_label=classes[j], auc=np.nan, n=len(y),
@@ -856,6 +889,7 @@ if run_6:
                             continue
                         fpr, tpr, _ = roc_curve(binary_y, probabilities[:, j])
                         score = auc(fpr, tpr)
+                        update(f"Class {classes[j]}: AUC={score:.4f}")
                         ax.plot(fpr, tpr, label=f"Class {classes[j]} (AUC = {score:.3f})")
                         descriptor_rows.append(dict(
                             descriptor=descriptor, task_type=result["task_type"],
@@ -872,23 +906,30 @@ if run_6:
                     ax.legend(loc="lower right")
                     ax.grid(alpha=0.2)
                     fig.tight_layout()
-                    fig.savefig(output_dir / f"{stem}_roc.png", dpi=300, bbox_inches="tight")
+                    plot_path = output_dir / f"{stem}_roc.png"
+                    update(f"Saving plot: {plot_path}")
+                    fig.savefig(plot_path, dpi=300, bbox_inches="tight")
                     if show:
                         plt.show()
                     metric_rows.extend(descriptor_rows)
                     status_rows.append(dict(descriptor=descriptor, status="plotted", error=""))
-                    print(f"[{number}/{len(classification)}] Plotted {descriptor}")
+                    update(f"[{number}/{len(classification)}] Plotted {descriptor} "
+                           f"in {perf_counter() - descriptor_started:.1f}s")
                 except Exception as exc:
                     status_rows.append(dict(descriptor=descriptor, status="failed", error=str(exc)))
-                    print(f"Could not plot {descriptor}: {exc}")
+                    update(f"[{number}/{len(classification)}] FAILED {descriptor}: {exc}")
                 finally:
                     if fig is not None:
                         plt.close(fig)
 
         metrics = pd.DataFrame(metric_rows)
+        update("Saving AUC metrics and descriptor status CSVs")
         metrics.to_csv(output_dir / "roc_auc_metrics.csv", index=False)
         pd.DataFrame(status_rows).to_csv(output_dir / "plot_status.csv", index=False)
-        print(f"Saved {len(metric_rows)} class AUCs and plot status to {output_dir}")
+        plotted = sum(row["status"] == "plotted" for row in status_rows)
+        update(f"Finished: {plotted}/{len(classification)} descriptors plotted, "
+               f"{len(status_rows) - plotted} failed. "
+               f"Saved {len(metric_rows)} class AUC records and plot status to {output_dir}")
         return metrics
 
 
