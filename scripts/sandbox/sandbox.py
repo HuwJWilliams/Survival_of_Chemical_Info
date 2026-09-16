@@ -856,7 +856,8 @@ if run_6:
             update(f"Cleaning complete: {frame.shape[0]:,} rows, {frame.shape[1]:,} columns")
             return frame
 
-        configured = FULL_PATHING.get("full_features", {}).get("fit_lipinski", {})
+        # Evaluate on the full dataset, excluding the saved training IDs.
+        configured = FULL_PATHING["full_features"]["all"]
         features = load_features(rdkit_path if rdkit_path is not None else configured["rdkit"])
         targets = load_features(mordred_path if mordred_path is not None else configured["mordred"])
         common_ids = features.index.intersection(targets.index)
