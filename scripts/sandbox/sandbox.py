@@ -925,9 +925,23 @@ if run_6:
                     if (expected_binary and len(classes) != 2) or (not expected_binary and len(classes) < 3):
                         raise ValueError("Model classes disagree with CSV task_type")
                     # Training excluded rare classes; only score model-supported labels.
-                    keep = y.isin(classes) & np.isfinite(x.to_numpy(dtype=float)).all(axis=1)
-                    update(f"Keeping {int(keep.sum()):,}/{len(keep):,} rows with supported labels and finite inputs")
+                    # sklearn forests convert predictors to float32. Values
+                    # can be finite in float64 yet overflow that conversion.
+                    input_values = x.to_numpy(dtype=np.float64)
+                    float32_limit = np.finfo(np.float32).max
+                    finite_values = np.isfinite(input_values)
+                    oversized_values = finite_values & (np.abs(input_values) > float32_limit)
+                    valid_input_rows = (finite_values & ~oversized_values).all(axis=1)
+                    if oversized_values.any():
+                        affected_columns = x.columns[oversized_values.any(axis=0)].tolist()
+                        update(f"Excluding {int(oversized_values.any(axis=1).sum()):,} rows "
+                               f"with inputs outside float32 range; descriptors: {affected_columns}")
+                    update(f"Non-finite input rows: {int((~finite_values.all(axis=1)).sum()):,}")
+                    keep = y.isin(classes) & valid_input_rows
+                    update(f"Keeping {int(keep.sum()):,}/{len(keep):,} rows with supported labels "
+                           "and finite, float32-representable inputs")
                     x, y = x.loc[keep], y.loc[keep]
+                    x = x.astype(np.float32)
                     if x.index.isin(training_ids).any():
                         raise RuntimeError("Training-ID exclusion failed; refusing to predict")
                     if y.nunique() < 2:
