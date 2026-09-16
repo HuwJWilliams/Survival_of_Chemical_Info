@@ -10,6 +10,16 @@ run_4 = False  # Atomic-mass autocorrelation distributions
 run_5 = False  # Fine-tuned vs ID-trimmed base predictions
 run_6 = True   # Classification ROC/AUC curves
 
+# Mordred targets to plot (not the RDKit inputs to the models).
+# Set to None for all classification descriptors, or [] to plot none.
+ROC_DESCRIPTORS = [
+    "n9FAHRing_mordred",
+    "GhoseFilter_mordred",
+    "nB_mordred",
+    "NsssP_mordred",
+    "n7FHRing_mordred",
+]
+
 # %% Plot fine-tuning training loss
 if run_1:
     data = pd.read_csv(
@@ -759,11 +769,14 @@ if run_6:
         rdkit_path=None,
         mordred_path=None,
         show=False,
+        descriptors=None,
     ):
         """Save final-model, in-sample ROC plots; these are not resampled CV AUCs.
 
         Input feature paths may be glob patterns, as in the pipeline configuration.
         Only classification models are extracted. Load only your trusted archive.
+        descriptors selects Mordred targets; None selects all classification targets.
+        Each model still receives its complete, ordered set of RDKit predictors.
         """
         from datetime import datetime
         from time import perf_counter
@@ -777,9 +790,21 @@ if run_6:
         experiment_dir = Path(experiment_dir)
         update(f"Reading descriptor results: {experiment_dir / 'pred_mordred_tr_rdkit.csv'}")
         results = pd.read_csv(experiment_dir / "pred_mordred_tr_rdkit.csv", index_col=0)
+        results.index = results.index.astype(str).str.strip()
+        if not results.index.is_unique:
+            raise ValueError("Descriptor results contain duplicate names")
         classification = results.loc[results["task_type"].isin(
             ["binary_classification", "multiclass_classification"]
         )]
+        if descriptors is not None:
+            if isinstance(descriptors, str):
+                raise TypeError("descriptors must be a list of names, not a string")
+            selected = list(dict.fromkeys(str(name).strip() for name in descriptors))
+            invalid = [name for name in selected if name not in classification.index]
+            if invalid:
+                raise ValueError(f"Requested descriptors are missing or not classification targets: {invalid}")
+            classification = classification.loc[selected]
+            update(f"Selected Mordred targets: {selected}")
         output_dir = experiment_dir / "classification_roc"
         output_dir.mkdir(parents=True, exist_ok=True)
         classification.to_csv(output_dir / "classification_descriptors.csv")
@@ -806,10 +831,12 @@ if run_6:
             frame.index = frame.index.astype(str)
             if not frame.index.is_unique:
                 raise ValueError(f"Duplicate molecule IDs in {path}")
-            # Match run/run_cfp.py preprocessing, including target imputation.
+            # Retain constant/high-missing columns: the saved model, rather
+            # than a new feature-selection pass, determines its input schema.
+            # Keep the existing numeric conversion and median imputation.
             update(f"Cleaning features: {frame.shape[0]:,} rows, {frame.shape[1]:,} columns")
             frame, _ = cleanFeatureDF(
-                frame, max_nan_fraction=0.10, drop_constant_cols=True,
+                frame, max_nan_fraction=1.0, drop_constant_cols=False,
                 median_impute=True, correlation_threshold=None,
             )
             update(f"Cleaning complete: {frame.shape[0]:,} rows, {frame.shape[1]:,} columns")
@@ -857,7 +884,15 @@ if run_6:
                     update("Model loaded; aligning predictors and filtering evaluation rows")
                     if not hasattr(model, "feature_names_in_"):
                         raise ValueError("Model lacks feature names; cannot verify predictor order")
-                    x = features.loc[:, list(model.feature_names_in_)]
+                    required_features = list(model.feature_names_in_)
+                    missing_features = [name for name in required_features if name not in features.columns]
+                    if missing_features:
+                        raise ValueError(
+                            f"Model-required RDKit descriptors are absent from the source data: {missing_features}. "
+                            "Provide rdkit_path pointing to the feature dataset used for training."
+                        )
+                    x = features.loc[:, required_features]
+                    update(f"Selected all {len(required_features)} model-trained RDKit inputs in training order")
                     y = targets[descriptor]
                     if pd.api.types.is_numeric_dtype(y):
                         y = y.round()
@@ -867,6 +902,7 @@ if run_6:
                         raise ValueError("Model classes disagree with CSV task_type")
                     # Training excluded rare classes; only score model-supported labels.
                     keep = y.isin(classes) & np.isfinite(x.to_numpy(dtype=float)).all(axis=1)
+                    update(f"Keeping {int(keep.sum()):,}/{len(keep):,} rows with supported labels and finite inputs")
                     x, y = x.loc[keep], y.loc[keep]
                     if y.nunique() < 2:
                         raise ValueError("Fewer than two classes available for ROC")
@@ -933,4 +969,4 @@ if run_6:
         return metrics
 
 
-    classification_roc_summary = plot_mordred_classification_roc()
+    classification_roc_summary = plot_mordred_classification_roc(descriptors=ROC_DESCRIPTORS)
