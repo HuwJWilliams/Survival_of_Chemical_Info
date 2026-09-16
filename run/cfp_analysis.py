@@ -123,7 +123,7 @@ property_dataset = args.property.lower()
 
 cfp_dir = resolveCFPDir(
     prediction_output_dirs=FULL_PATHING["prediction_output_dirs"],
-    results_dir=args.results_dir,
+    result_dir=args.results_dir,
     property_dataset=property_dataset,
 )
 
