@@ -817,7 +817,7 @@ if run_6:
         training_ids = pd.Index(training_id_values.unique())
         update(f"Loaded {len(training_ids):,} unique training IDs to exclude")
 
-        def load_features(path):
+        def load_features(path, exclude_training=True):
             update(f"Finding feature files: {path}")
             files = sorted(glob(str(path)))
             if not files and str(path).endswith("_*.csv"):
@@ -838,12 +838,13 @@ if run_6:
                 raise ValueError(f"Blank molecule IDs in {path}")
             if not frame.index.is_unique:
                 raise ValueError(f"Duplicate molecule IDs in {path}")
-            excluded = frame.index.isin(training_ids)
-            frame = frame.loc[~excluded].copy()
-            update(f"Excluded {int(excluded.sum()):,} training molecules from {path}; "
-                   f"{len(frame):,} rows remain")
-            if frame.empty:
-                raise ValueError(f"No evaluation molecules remain after training-ID exclusion in {path}")
+            if exclude_training:
+                excluded = frame.index.isin(training_ids)
+                frame = frame.loc[~excluded].copy()
+                update(f"Excluded {int(excluded.sum()):,} training molecules from {path}; "
+                       f"{len(frame):,} rows remain")
+                if frame.empty:
+                    raise ValueError(f"No evaluation molecules remain after training-ID exclusion in {path}")
             # Retain constant/high-missing columns: the saved model, rather
             # than a new feature-selection pass, determines its input schema.
             # Do not infer imputation values from evaluation data or impute
@@ -859,7 +860,10 @@ if run_6:
         # Evaluate on the full dataset, excluding the saved training IDs.
         configured = FULL_PATHING["full_features"]["all"]
         features = load_features(rdkit_path if rdkit_path is not None else configured["rdkit"])
-        targets = load_features(mordred_path if mordred_path is not None else configured["mordred"])
+        targets = load_features(
+            mordred_path if mordred_path is not None else configured["mordred"],
+            exclude_training=False,
+        )
         common_ids = features.index.intersection(targets.index)
         if common_ids.empty:
             raise ValueError("No common evaluation IDs remain after excluding training molecules")
@@ -867,7 +871,7 @@ if run_6:
         update(f"Aligned RDKit and Mordred data: {len(common_ids):,} molecule IDs")
         model_dir = output_dir / "extracted_models"
         model_dir.mkdir(exist_ok=True)
-        metric_rows, status_rows = [], []
+        metric_rows, status_rows, class_count_rows = [], [], []
         plotted = 0
         archive_path = experiment_dir / "training_data" / "models.tar.gz"
 
@@ -924,6 +928,12 @@ if run_6:
                     expected_binary = result["task_type"] == "binary_classification"
                     if (expected_binary and len(classes) != 2) or (not expected_binary and len(classes) < 3):
                         raise ValueError("Model classes disagree with CSV task_type")
+                    train_ids_for_target = targets.index.intersection(training_ids)
+                    train_y = targets.loc[train_ids_for_target, descriptor]
+                    if pd.api.types.is_numeric_dtype(train_y):
+                        train_y = train_y.round()
+                    train_y = train_y.loc[train_y.isin(classes)]
+                    train_counts = train_y.value_counts(dropna=False)
                     # Training excluded rare classes; only score model-supported labels.
                     # sklearn forests convert predictors to float32. Values
                     # can be finite in float64 yet overflow that conversion.
@@ -941,6 +951,21 @@ if run_6:
                     update(f"Keeping {int(keep.sum()):,}/{len(keep):,} rows with supported labels "
                            "and finite, float32-representable inputs")
                     x, y = x.loc[keep], y.loc[keep]
+                    eval_counts = y.value_counts(dropna=False)
+                    for cls in classes:
+                        class_count_rows.append(dict(
+                            descriptor=descriptor,
+                            task_type=result["task_type"],
+                            class_label=cls,
+                            training_count=int(train_counts.get(cls, 0)),
+                            test_count=int(eval_counts.get(cls, 0)),
+                            training_total=int(train_counts.sum()),
+                            test_total=int(eval_counts.sum()),
+                            evaluation="training_ids_excluded",
+                            status="ok",
+                        ))
+                    update("Class counts after filtering: "
+                           f"training={train_counts.to_dict()}, test={eval_counts.to_dict()}")
                     x = x.astype(np.float32)
                     if x.index.isin(training_ids).any():
                         raise RuntimeError("Training-ID exclusion failed; refusing to predict")
@@ -1006,6 +1031,7 @@ if run_6:
         metrics = pd.DataFrame(metric_rows)
         update("Saving AUC metrics and descriptor status CSVs")
         metrics.to_csv(output_dir / "roc_auc_metrics.csv", index=False)
+        pd.DataFrame(class_count_rows).to_csv(output_dir / "roc_class_counts.csv", index=False)
         pd.DataFrame(status_rows).to_csv(output_dir / "plot_status.csv", index=False)
         plotted = sum(row["status"] == "plotted" for row in status_rows)
         selected_names = [row["descriptor"] for row in status_rows if row["status"] == "plotted"]
