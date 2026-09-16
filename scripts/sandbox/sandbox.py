@@ -864,6 +864,7 @@ if run_6:
             mordred_path if mordred_path is not None else configured["mordred"],
             exclude_training=False,
         )
+        training_targets = targets
         common_ids = features.index.intersection(targets.index)
         if common_ids.empty:
             raise ValueError("No common evaluation IDs remain after excluding training molecules")
@@ -928,8 +929,8 @@ if run_6:
                     expected_binary = result["task_type"] == "binary_classification"
                     if (expected_binary and len(classes) != 2) or (not expected_binary and len(classes) < 3):
                         raise ValueError("Model classes disagree with CSV task_type")
-                    train_ids_for_target = targets.index.intersection(training_ids)
-                    train_y = targets.loc[train_ids_for_target, descriptor]
+                    train_ids_for_target = training_targets.index.intersection(training_ids)
+                    train_y = training_targets.loc[train_ids_for_target, descriptor]
                     if pd.api.types.is_numeric_dtype(train_y):
                         train_y = train_y.round()
                     train_y = train_y.loc[train_y.isin(classes)]

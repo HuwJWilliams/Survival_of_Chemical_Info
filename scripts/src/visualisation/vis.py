@@ -417,7 +417,7 @@ class Visualise:
         save_plot: bool = False,
         save_path: Union[str, Path] = None,
         save_fname: str = "group_radar",
-        dpi: int = 400,
+        dpi: int = 1200,
         wrap_labels: bool = True,
         wrap_width: int = 14,
         rotate_labels: bool = True,

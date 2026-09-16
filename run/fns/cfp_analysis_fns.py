@@ -76,7 +76,7 @@ def plotGroupRadar(
     plot_dir: str | Path,
     exp_name: str,
     task_type: str = "regression",
-    dpi: int = 400,
+    dpi: int = 1200,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -282,7 +282,7 @@ def plotFullTaskBar(
     df: pd.DataFrame,
     plot_dir: str | Path,
     exp_name: str,
-    dpi: int = 400,
+    dpi: int = 1200,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -345,7 +345,7 @@ def plotGroupTaskFractionBars(
     plot_dir: str | Path,
     exp_name: str,
     threshold: float = 0.7,
-    dpi: int = 400,
+    dpi: int = 1200,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -415,7 +415,7 @@ def plotGroupTaskFractionSummary(
     plot_dir: str | Path,
     threshold: float = 0.7,
     excl_cols: list[str] | None = None,
-    dpi: int = 400,
+    dpi: int = 1200,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
