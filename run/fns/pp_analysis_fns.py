@@ -130,6 +130,11 @@ def getFeatureColourConfig(
 
 
 FT_FEATURE_PAIRS = {
+    **{
+        f"ft-{split}-{base}": base
+        for split in ("scaffold", "random")
+        for base in ("chemberta-dc", "chemberta-sey", "molformer-ibm", "molformer-dc")
+    },
     "ft-scaffold-chemberta": "chemberta",
     "ft-scaffold-chembertasey": "chembertasey",
     "ft-scaffold-molformer": "molformer",
@@ -200,22 +205,93 @@ def getFeatureStyleFromConfig(
     return style, "//" if feature.startswith("ft-") else None
 
 
+def getMatchedFTPerformanceDf(
+    prop, feature_sets, full_pathing, preds_dir, target_columns, save_path,
+) -> pd.DataFrame:
+    """Score each FT/base pair on identical finite external observations.
+
+    Use the saved mean out-of-sample prediction per molecule for both models.
+    Save the aligned inputs as an audit trail for the comparison scores.
+    """
+    target_col = target_columns[prop]
+    target_df = pd.read_csv(full_pathing["targets"][prop], dtype={"ID": str})
+    true = pd.to_numeric(target_df.set_index("ID")[target_col], errors="coerce")
+    true = true.replace([np.inf, -np.inf], np.nan).dropna().rename("true")
+    if not true.index.is_unique:
+        raise ValueError(f"Duplicate target molecule IDs for {prop}")
+    q1, q3 = true.quantile([0.25, 0.75])
+    lower, upper = q1 - 3 * (q3 - q1), q3 + 3 * (q3 - q1)
+    predictions = {}
+    rows = []
+    for ft_feature, base_feature in FT_FEATURE_PAIRS.items():
+        if not {ft_feature, base_feature}.issubset(feature_sets):
+            continue
+        for feature in (ft_feature, base_feature):
+            if feature in predictions:
+                continue
+            directory = preds_dir.get(prop, {}).get(feature)
+            path = Path(directory) / "last_20pct_pred.csv.gz" if directory else None
+            if path is None or not path.exists():
+                print(f"Skipping matched comparison: missing predictions for {prop}/{feature}")
+                predictions[feature] = None
+                continue
+            frame = pd.read_csv(path, dtype={"ID": str}).set_index("ID")
+            if not frame.index.is_unique:
+                raise ValueError(f"Duplicate prediction molecule IDs in {path}")
+            column = target_col if target_col in frame else frame.columns[0]
+            predictions[feature] = pd.to_numeric(frame[column], errors="coerce")
+        if any(predictions[feature] is None for feature in (ft_feature, base_feature)):
+            continue
+        matched = pd.concat(
+            [true, predictions[ft_feature].rename("ft_pred"),
+             predictions[base_feature].rename("base_pred")],
+            axis=1, join="inner",
+        ).replace([np.inf, -np.inf], np.nan).dropna()
+        for split, frame in (
+            ("external", matched),
+            ("external_3xIQR", matched.loc[matched["true"].between(lower, upper)]),
+        ):
+            if len(frame) < 2:
+                print(f"Skipping {prop}/{split}/{ft_feature}: fewer than two shared molecules")
+                continue
+            directory = Path(save_path) / prop / split / "ft_differences"
+            directory.mkdir(parents=True, exist_ok=True)
+            frame.to_csv(directory / f"{ft_feature}_vs_{base_feature}_matched_predictions.csv", index_label="ID")
+            for feature, column in ((ft_feature, "ft_pred"), (base_feature, "base_pred")):
+                error = frame[column] - frame["true"]
+                rows.append({
+                    "property": prop, "split": split, "feature_set": feature,
+                    "comparison_pair": ft_feature, "stat": "mean", "n": len(frame),
+                    "pearson_r": frame["true"].corr(frame[column]),
+                    "r2": calculateR2(frame["true"], frame[column]),
+                    "rmse": error.pow(2).mean() ** 0.5,
+                    "bias": error.mean(),
+                    "sdep": (error - error.mean()).pow(2).mean() ** 0.5,
+                })
+    return pd.DataFrame(rows)
+
+
 def getFTDifferenceDf(
     data: pd.DataFrame,
     prop: str,
     split_name: str,
     metric_col: str,
 ) -> pd.DataFrame:
+    if data.empty:
+        return pd.DataFrame()
+    if "comparison_pair" not in data or "n" not in data:
+        raise ValueError("FT differences require scores calculated on matched molecule IDs")
     mean_df = data.loc[
         data["stat"] == "mean",
-        ["feature_set", metric_col],
+        ["feature_set", "comparison_pair", "n", metric_col],
     ].copy()
 
     mean_df[metric_col] = pd.to_numeric(mean_df[metric_col], errors="coerce")
-    mean_by_feature = mean_df.set_index("feature_set")[metric_col]
 
     rows = []
     for ft_feature, base_feature in FT_FEATURE_PAIRS.items():
+        pair_df = mean_df.loc[mean_df["comparison_pair"] == ft_feature].set_index("feature_set")
+        mean_by_feature = pair_df[metric_col]
         if (
             ft_feature not in mean_by_feature.index
             or base_feature not in mean_by_feature.index
@@ -232,6 +308,7 @@ def getFTDifferenceDf(
                 "base_feature": base_feature,
                 "ft_value": mean_by_feature[ft_feature],
                 "base_value": mean_by_feature[base_feature],
+                "n_matched": int(pair_df.loc[ft_feature, "n"]),
                 "difference": mean_by_feature[ft_feature]
                 - mean_by_feature[base_feature],
             }
@@ -318,7 +395,7 @@ def plotFTDifferenceBar(
     plt.ylabel(f"ft - base {metric_col}", fontsize=12, weight="bold")
     plt.xlabel("feature pair", fontsize=12, weight="bold")
     plt.title(
-        f"{prop}: {split_name} {metric_col} FT difference",
+        f"{prop}: {split_name} {metric_col} FT difference (shared molecules)",
         fontsize=16,
         weight="bold",
     )
@@ -461,7 +538,7 @@ def plotGroupedPropertyFeatureBar(
     summary_df: pd.DataFrame,
     split_name: str,
     save_path: Path,
-    metric: str = "r2",
+    metric: str = "pearson_r",
     feature_order: list[str] | None = None,
     colour_map: dict | None = None,
     dpi: int = 400,
@@ -570,7 +647,7 @@ def plotFTDifferenceSummaryBars(
         return
 
     if metrics is None:
-        metrics = ["r2", "pearson_r"]
+        metrics = ["pearson_r"]
 
     plot_dir = save_path / "ft_differences"
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -632,7 +709,7 @@ def plotFTDifferenceSummaryBars(
             ax.set_xlabel("property", fontsize=12, weight="bold")
             ax.set_ylabel(f"ft - base {metric}", fontsize=12, weight="bold")
             ax.set_title(
-                f"{split_name} {metric} FT differences",
+                f"{split_name} {metric} FT differences (shared molecules)",
                 fontsize=16,
                 weight="bold",
             )
@@ -775,19 +852,11 @@ def plotTrueVsPred(
     ax.set_ylabel("Predicted")
     ax.set_title(f"True vs Predicted ({model_name or save_fname})")
 
-    table_data = [
-        [
-            f"{rmse:.3f}",
-            f"{r2:.3f}",
-            f"{pearson_r:.3f}",
-            f"{bias:.3f}",
-            f"{sdep:.3f}",
-        ]
-    ]
+    table_data = [[f"{pearson_r:.3f}"]]
 
     table = ax.table(
         cellText=table_data,
-        colLabels=["RMSE", "R2", "Pearson r", "Bias", "SDEP"],
+        colLabels=["Pearson r"],
         cellLoc="center",
         loc="bottom",
         bbox=[0.0, -0.32, 1.0, 0.16],
@@ -1067,6 +1136,7 @@ def getLipinskiFilteredExternalPerformanceDf(
                         "split": "external_lipinski",
                         "feature_set": feature_set,
                         "r2": calculateR2(eval_df["true"], eval_df["pred"]),
+                        "pearson_r": eval_df["true"].corr(eval_df["pred"]),
                         "n": len(eval_df),
                         "n_lipinski_ids": len(lipinski_ids),
                     }

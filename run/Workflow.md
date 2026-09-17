@@ -356,13 +356,27 @@ List of the feature sets whose performance will be analysed. Defaults to all ava
 The directory to save all analaysis plots and results to. Defaults to 'pp_analysis' in the results directory.
 
 `--analysis-metrics` (Optional)
-Metrics to use in analysis plots. Defaults to RMSE, Pearson R and COD (R^2)
+Metrics to use in analysis plots. Defaults to Pearson r.
+
+Fine-tuned versus pretrained difference plots recompute both scores on the
+intersection of molecule IDs with finite targets and predictions for that pair.
+They use the saved mean out-of-sample prediction per molecule in
+`last_20pct_pred.csv.gz`. The 3xIQR comparisons additionally apply the same target
+bounds to both models. Different model pairs can have different intersections.
+Internal difference plots are skipped because the saved aggregate internal
+scores cannot be restricted to shared molecule IDs.
+
+`ft_matched_performances.csv` records both matched scores and molecule counts;
+`ft_differences.csv` includes `n_matched`. The per-property `ft_differences`
+directories also contain the aligned targets and predictions with their IDs.
+General performance plots still describe each model's available evaluation set.
+Use a new `--save-dir` when rerunning to keep old unmatched plots separate.
 
 #### Example Call
 ```bash
-python pp_analysis.py
-    --properties bp logd pka_basic
-    --feature-set rdkit mordred
+python pp_analysis.py \
+    --properties bp logd pka_basic \
+    --feature-sets rdkit mordred
 ```
 
 #### Example Outputs

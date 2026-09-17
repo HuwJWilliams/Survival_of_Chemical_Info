@@ -18,7 +18,6 @@ from config import (
     SRC_DIR,
     PATHING_JSON_PATH,
     SUPPORTED_FEATURE_SETS,
-    PP_ANALYSIS_METRICS,
     TARGET_COLUMNS,
 )
 from pp_analysis_fns import *
@@ -66,7 +65,7 @@ parser.add_argument(
 parser.add_argument(
     "--analysis-metrics",
     nargs="+",
-    default=["r2", "pearson_r", "rmse"],
+    default=["pearson_r"],
     choices=["r2", "pearson_r", "bias", "sdep", "rmse"],
     help="Analysis metrics to plot",
 )
@@ -155,7 +154,7 @@ for prop, int_ext_perfs in full_performance_dict.items():
             elif split_name == "external":
                 external_summary_rows.append(summary_df)
 
-        for metric in PP_ANALYSIS_METRICS["regression"]["bar_metrics"]:
+        for metric in summary_metrics:
 
             metric_col = getMetricColumn(metric=metric, data=perf_df)
 
@@ -213,17 +212,6 @@ for prop, int_ext_perfs in full_performance_dict.items():
                 colour_map=colour_map,
                 y_lims=y_lim,
             )
-
-            ft_diff_df = plotFTDifferenceBar(
-                data=perf_df,
-                prop=prop,
-                split_name=split_name,
-                metric_col=metric_col,
-                save_path=save_path,
-                colour_map=colour_map,
-            )
-            if not ft_diff_df.empty:
-                ft_difference_rows.append(ft_diff_df)
 
 # %% ===== True vs Predicted Plots =====
 true_vs_pred_rows = []
@@ -369,7 +357,7 @@ if internal_summary_rows:
         summary_df=internal_summary_df,
         split_name="internal",
         save_path=save_path,
-        metric="r2",
+        metric="pearson_r",
         feature_order=feature_sets,
         colour_map=colour_map,
     )
@@ -391,7 +379,7 @@ if external_summary_rows:
         summary_df=external_summary_df,
         split_name="external",
         save_path=save_path,
-        metric="r2",
+        metric="pearson_r",
         feature_order=feature_sets,
         colour_map=colour_map,
     )
@@ -413,7 +401,7 @@ if not lipinski_external_df.empty:
         summary_df=lipinski_external_df,
         split_name="external_lipinski",
         save_path=save_path,
-        metric="r2",
+        metric="pearson_r",
         feature_order=feature_sets,
         colour_map=colour_map,
     )
@@ -480,17 +468,6 @@ if not iqr_external_df.empty:
                 y_lims=y_lim,
             )
 
-            ft_diff_df = plotFTDifferenceBar(
-                data=prop_df,
-                prop=prop,
-                split_name="external_3xIQR",
-                metric_col=metric_col,
-                save_path=save_path,
-                colour_map=colour_map,
-            )
-            if not ft_diff_df.empty:
-                ft_difference_rows.append(ft_diff_df)
-
         plotGroupedPropertyFeatureBar(
             summary_df=iqr_external_df,
             split_name="external_3xIQR",
@@ -499,6 +476,35 @@ if not iqr_external_df.empty:
             feature_order=feature_sets,
             colour_map=colour_map,
         )
+
+print("Internal FT differences skipped: saved aggregate scores cannot be matched by molecule ID.")
+matched_performance_rows = []
+for prop in args.properties:
+    if not Path(FULL_PATHING["targets"][prop]).exists():
+        print(f"Skipping matched FT comparison: missing targets for {prop}")
+        continue
+    matched_df = getMatchedFTPerformanceDf(
+        prop, feature_sets, FULL_PATHING, PREDS_DIR, TARGET_COLUMNS, save_path,
+    )
+    if matched_df.empty:
+        continue
+    matched_performance_rows.append(matched_df)
+    for split_name, split_df in matched_df.groupby("split"):
+        for metric in summary_metrics:
+            metric_col = getMetricColumn(metric, split_df)
+            if metric_col is None:
+                continue
+            ft_diff_df = plotFTDifferenceBar(
+                data=split_df, prop=prop, split_name=split_name,
+                metric_col=metric_col, save_path=save_path, colour_map=colour_map,
+            )
+            if not ft_diff_df.empty:
+                ft_difference_rows.append(ft_diff_df)
+
+if matched_performance_rows:
+    pd.concat(matched_performance_rows, ignore_index=True).to_csv(
+        save_path / "ft_matched_performances.csv", index=False,
+    )
 
 if ft_difference_rows:
     ft_difference_df = pd.concat(ft_difference_rows, ignore_index=True)

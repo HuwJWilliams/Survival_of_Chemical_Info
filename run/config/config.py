@@ -151,11 +151,11 @@ TRANSFORMER_FEATURE_SPECS: dict[str, dict[str, str]] = {
 
 CFP_ANALYSIS_METRICS = {
     "regression": {
-        "metric": "r2",
-        "bar_metrics": ["Pearson_r", "r2"],
+        "metric": "Pearson_r",
+        "bar_metrics": ["Pearson_r"],
         "group_metrics": ["Pearson_r", "r2", "RMSE", "Bias"],
         "member_suffix": "reg",
-        "radar_metrics": ["avg_Pearson_r", "avg_r2"],
+        "radar_metrics": ["avg_Pearson_r"],
     },
     "binary_classification": {
         "metric": "Balanced_Accuracy",
@@ -190,7 +190,7 @@ CFP_ANALYSIS_METRICS = {
 
 PP_ANALYSIS_METRICS = {
     "regression": {
-        "metric": "r2",
-        "bar_metrics": ["Pearson_r", "r2", "RMSE", "Bias"],
+        "metric": "Pearson_r",
+        "bar_metrics": ["Pearson_r"],
     },
 }
