@@ -33,6 +33,21 @@ v = Visualise(save_all=False)
 
 
 # %% ===== Function Definitions =====
+def selectPPAnalysisInputs(preds_dir, target_paths, target_columns, properties, feature_sets=None):
+    """Use configured feature names and exclude properties without target metadata."""
+    valid_properties = []
+    for prop in properties:
+        if prop not in target_columns or prop not in target_paths:
+            print(f"Skipping {prop}: missing target column or target path configuration")
+            continue
+        valid_properties.append(prop)
+    if feature_sets is None:
+        feature_sets = list(dict.fromkeys(
+            feature for prop in valid_properties for feature in preds_dir[prop]
+        ))
+    return valid_properties, [feature for feature in feature_sets if "-random-" not in feature]
+
+
 def getPropertyPerformanceDfs(
     property_pathing: dict[str, Path],
     feature_sets: list[str],
@@ -55,19 +70,23 @@ def getPropertyPerformanceDfs(
     ext_rows = []
 
     for feat in feature_sets:
+        if feat not in property_pathing:
+            continue
         feature_path = Path(property_pathing[feat])
         perf_json_path = feature_path / perf_fname
 
-        with open(perf_json_path, "r") as f:
-            perf_json = json.load(f)
-
-        internal = perf_json["internal"]
-        int_mean = internal["mean"]
-        int_std = internal["std"]
-
-        external = perf_json["external"]
-        ext_mean = external["mean"]
-        ext_std = external["std"]
+        try:
+            with open(perf_json_path, "r") as f:
+                perf_json = json.load(f)
+            internal = perf_json["internal"]
+            int_mean = internal["mean"]
+            int_std = internal["std"]
+            external = perf_json["external"]
+            ext_mean = external["mean"]
+            ext_std = external["std"]
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(f"Skipping performance for {feat} ({perf_json_path}): {exc}")
+            continue
 
         int_rows.append(
             {

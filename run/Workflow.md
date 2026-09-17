@@ -350,7 +350,11 @@ The analysis suite for the single predictions.
 List of the properties which will be analysed. Must be the key within the pathing JSON (e.g., "bp", "logd", etc). Defaults to all available properties.
 
 `--feature-sets` (Optional)
-List of the feature sets whose performance will be analysed. Defaults to all available feature sets
+List of the feature sets whose performance will be analysed. Defaults to the
+feature names registered in the selected properties' RF paths, including legacy
+names. Random-split fine-tuned features remain excluded. Missing performance
+files are skipped per feature; properties without a configured target column or
+target path are skipped with a message.
 
 `--save-dir` (Optional)
 The directory to save all analaysis plots and results to. Defaults to 'pp_analysis' in the results directory.

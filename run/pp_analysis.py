@@ -33,6 +33,9 @@ v = Visualise(save_all=False)
 FULL_PATHING = getPaths(PATHING_JSON_PATH)
 RESULTS_DIR = FULL_PATHING["imp_dirs"]["results_dir"]
 PREDS_DIR = FULL_PATHING["prediction_output_dirs"]["rf"]
+AVAILABLE_FEATURE_SETS = sorted(set(SUPPORTED_FEATURE_SETS).union(
+    feature for property_paths in PREDS_DIR.values() for feature in property_paths
+))
 
 # %% ===== Argument Parsing =====
 
@@ -51,9 +54,9 @@ parser.add_argument(
 parser.add_argument(
     "--feature-sets",
     nargs="+",
-    default=SUPPORTED_FEATURE_SETS,
-    choices=SUPPORTED_FEATURE_SETS,
-    help=f"Name of the experiments ran.",
+    default=None,
+    choices=AVAILABLE_FEATURE_SETS,
+    help="Feature sets to analyse; defaults to names configured for the selected properties.",
 )
 
 parser.add_argument(
@@ -71,14 +74,17 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+args.properties, feature_sets = selectPPAnalysisInputs(
+    PREDS_DIR, FULL_PATHING["targets"], TARGET_COLUMNS, args.properties, args.feature_sets,
+)
+if not args.properties:
+    parser.error("No selected properties have both a target column and target path configured.")
 
 
 # %% ===== Loading the Data =====
 full_performance_dict = {}
-save_path = Path(args.save_dir)
+save_path = Path(args.save_dir).expanduser()
 save_path.mkdir(parents=True, exist_ok=True)
-feature_sets = args.feature_sets
-feature_sets = [feature for feature in feature_sets if "-random-" not in feature]
 
 colour_map = getFeatureColourConfig(feature_ls=feature_sets, colour_map=v.colour_map)
 
@@ -99,7 +105,7 @@ for prop in args.properties:
             "external": ext_property_performance_df,
         }
     except Exception as e:
-        print(f"Could not find performance performance for {prop}:\n{e}")
+        print(f"Could not load performance for {prop}:\n{e}")
 
 # %% ===== Running Analysis =====
 # Creating a bar plots for each property & performance metric
@@ -118,6 +124,9 @@ for prop, int_ext_perfs in full_performance_dict.items():
         "external": int_ext_perfs["external"],
     }.items():
         print(f"Processing {split_name}...")
+        if perf_df.empty:
+            print(f"No performance results for {prop} / {split_name}")
+            continue
 
         summary_metric_cols = {
             metric: getMetricColumn(metric=metric, data=perf_df)
