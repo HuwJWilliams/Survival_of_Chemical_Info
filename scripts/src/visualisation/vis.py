@@ -550,8 +550,14 @@ class Visualise:
             rotation = 0
             if rotate_labels:
                 rotation = np.degrees(angle)
+                # Alignment is applied before rotation. Anchor the inner end
+                # of each label so it extends radially away from the circle,
+                # including labels on the nearly vertical spokes.
+                ha = "left"
+                va = "center"
                 if 90 < rotation < 270:
                     rotation += 180
+                    ha = "right"
             ax1.text(
                 angle,
                 label_radius,
