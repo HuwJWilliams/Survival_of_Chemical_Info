@@ -531,7 +531,7 @@ class Visualise:
 
         ax1.set_xticks(angles[:-1])
         ax1.set_xticklabels([])
-        label_radius = 1.18
+        label_radius = 1.06
         for label, angle in zip(pretty_labels, angles[:-1]):
             x = np.cos(angle)
             y = np.sin(angle)
@@ -618,10 +618,22 @@ class Visualise:
             frameon=False,
         )
 
-        ax1.set_title(title, fontsize=title_fontsize, fontweight="bold", pad=28)
-
         # Layout tweak (polar plots often need manual spacing)
         plt.subplots_adjust(top=0.82, bottom=0.16, left=0.16, right=0.84)
+
+        # Measure the labels and legend before placing the title, so even long
+        # or wrapped labels have a clear 12-point gap below it.
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        plot_top = max(ax.get_tightbbox(renderer).y1 for ax in (ax1, ax2))
+        title_y = (plot_top + 12 * fig.dpi / 72) / fig.bbox.height
+        fig.suptitle(
+            title,
+            fontsize=title_fontsize,
+            fontweight="bold",
+            y=title_y,
+            va="bottom",
+        )
 
         self._savePlot(
             save_plot=save_plot,
