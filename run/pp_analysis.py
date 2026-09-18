@@ -527,3 +527,10 @@ if ft_difference_rows:
         metrics=summary_metrics,
         colour_map=colour_map,
     )
+else:
+    print(
+        "No FT comparison summary was generated. Both fine-tuned and pretrained "
+        "features must be selected and have last_20pct_pred.csv.gz files with "
+        "at least two shared valid molecule IDs and a defined comparison metric. "
+        "See the missing-prediction and shared-molecule messages above."
+    )

@@ -142,7 +142,14 @@ def getFeatureColourConfig(
             hatch = None
             stripped_feature_name = feature
 
-        colour = colour_map.get(stripped_feature_name, "#808080")
+        colour_aliases = {
+            "chemberta-dc": "chemberta", "chemberta-sey": "chembertasey",
+            "molformer-ibm": "molformer", "molformer-dc": "molformer-c3-1b",
+        }
+        colour = colour_map.get(
+            stripped_feature_name,
+            colour_map.get(colour_aliases.get(stripped_feature_name), "#808080"),
+        )
         feature_colour_config[feature] = (colour, hatch)
 
     return feature_colour_config
@@ -725,17 +732,49 @@ def plotFTDifferenceSummaryBars(
                         bar.set_linewidth(0.8)
 
             ax.axhline(0, color="black", linewidth=1)
-            ax.set_xlabel("property", fontsize=12, weight="bold")
-            ax.set_ylabel(f"ft - base {metric}", fontsize=12, weight="bold")
+            property_labels = {
+                "bp": "Boiling Point", "logd": "logD", "pka": "pKa (OChem)",
+                "pka_paper1_basic": "pKa (basic)", "pka_paper1_acidic": "pKa (acidic)",
+                "log_ld50": "log(LD50)", "pic50": "BRD4 pIC50",
+                "hole_re": "Hole R.E", "elec_re": "Electron R.E",
+                "aq_sol": "Aqueous Solubility", "egfr_pic50": "EGFR pIC50",
+            }
+            ax.set_xticks(range(len(property_order)))
+            ax.set_xticklabels(
+                [property_labels.get(prop, prop) for prop in property_order],
+                rotation=45, ha="right", fontweight="bold",
+            )
+            ax.set_xlabel("Property", fontsize=12, weight="bold")
+            metric_label = "Pearson r" if metric in METRIC_ALIASES["pearson_r"] else metric
+            ax.set_ylabel(
+                f"Δ {metric_label}\n(Fine-Tuned vs. Pretrained)", fontsize=12, weight="bold",
+            )
             ax.set_title(
-                f"{split_name} {metric} FT differences (shared molecules)",
+                "Fine-Tuned vs Pretrained Embeddings\n"
+                f"{split_name.replace('_', ' ')} · shared molecules",
                 fontsize=16,
                 weight="bold",
             )
             ax.tick_params(axis="x", labelrotation=45, labelsize=10)
             ax.tick_params(axis="y", labelsize=10)
+            feature_labels = {
+                "selformer": "SELFormer", "molformer": "MolFormer-IBM",
+                "molformer-ibm": "MolFormer-IBM", "molformer-c3-1b": "MolFormer-DC",
+                "molformer-dc": "MolFormer-DC", "chemberta": "ChemBERTa-DC",
+                "chemberta-dc": "ChemBERTa-DC", "chembertasey": "ChemBERTa-Sey",
+                "chemberta-sey": "ChemBERTa-Sey",
+            }
+            pair_bases = metric_df.drop_duplicates("feature_pair").set_index("feature_pair")["base_feature"]
+            handles, labels = ax.get_legend_handles_labels()
+            display_labels = [feature_labels.get(pair_bases[label], pair_bases[label]) for label in labels]
+            # Keep distinct pairs identifiable if aliases or multiple FT variants coexist.
+            display_labels = [
+                f"{display} ({label})" if display_labels.count(display) > 1 else display
+                for label, display in zip(labels, display_labels)
+            ]
             ax.legend(
-                title="feature pair",
+                handles, display_labels,
+                title="Feature Set",
                 bbox_to_anchor=(1.02, 1),
                 loc="upper left",
                 borderaxespad=0,
@@ -747,6 +786,7 @@ def plotFTDifferenceSummaryBars(
                 bbox_inches="tight",
             )
             plt.close()
+            print(f"Saved FT comparison summary: {plot_dir / f'{split_name}_{metric}_ft_difference_summary_bar.png'}")
 
 
 def loadFeaturePattern(path: str | Path) -> pd.DataFrame:
