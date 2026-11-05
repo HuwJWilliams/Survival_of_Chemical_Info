@@ -7,6 +7,7 @@ Script to join all datasets together
 import argparse
 from pathlib import Path
 import sys
+
 # endregion
 
 # region Path Setup
@@ -136,6 +137,6 @@ if __name__ == "__main__":
         lipinski_mw=args.lipinski_mw_limit,
         lipinski_logp=args.logp_limit,
         lipinski_n_hbd=args.hbd_limit,
-        lipinski_n_hba=args.hba_limit
+        lipinski_n_hba=args.hba_limit,
     )
 # endregion

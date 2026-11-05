@@ -22,7 +22,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 RUN_DIR = Path(__file__).resolve().parent
 PROJ_DIR = RUN_DIR.parent
 
@@ -44,7 +43,6 @@ from get_paths import getPaths  # noqa: E402
 sys.path.insert(0, str(SRC_DIR / "misc"))
 from misc_fns import splitByMurckoScaffold  # noqa: E402
 
-
 FEATURE_SET_ALIASES = {
     "molformer": "molformer-dc",
     "molformer-c3-1b": "molformer-dc",
@@ -53,9 +51,7 @@ FEATURE_SET_ALIASES = {
 
 
 def parse_args() -> argparse.Namespace:
-    feature_choices = sorted(
-        set(TRANSFORMER_FEATURE_SPECS).union(FEATURE_SET_ALIASES)
-    )
+    feature_choices = sorted(set(TRANSFORMER_FEATURE_SPECS).union(FEATURE_SET_ALIASES))
 
     parser = argparse.ArgumentParser(
         description=(

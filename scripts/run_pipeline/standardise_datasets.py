@@ -32,57 +32,45 @@ paths = getPaths(PATHS_JSON)
 # region Argument Parsing
 parser = argparse.ArgumentParser(
     description="Standardising datasets for the workflow and adding cleaned paths to global pathing"
-    )
+)
 supported_names = list(paths["raw_data"].keys())
 
 parser.add_argument(
     "--dataset-name",
     required=True,
     choices=supported_names,
-    help="Name of raw data paths in pathing json. Current supported:\n" \
-    f"{supported_names}"
+    help="Name of raw data paths in pathing json. Current supported:\n"
+    f"{supported_names}",
 )
 
 parser.add_argument(
-    "--target-col",
-    required=True,
-    help="Name of target column in the raw dataset file"
+    "--target-col", required=True, help="Name of target column in the raw dataset file"
 )
 
 parser.add_argument(
-    "--smiles-col",
-    required=True,
-    help="Name of smiles column in raw dataset file"
+    "--smiles-col", required=True, help="Name of smiles column in raw dataset file"
 )
 
 parser.add_argument(
-    "--id-col",
-    default=None,
-    help="Name of the id column in raw dataset file"
+    "--id-col", default=None, help="Name of the id column in raw dataset file"
 )
 
 parser.add_argument(
     "--id-prefix",
     default="id",
-    help="If no existing ID column, set this to create unique ID column (e.g., bp-1, ...)"
+    help="If no existing ID column, set this to create unique ID column (e.g., bp-1, ...)",
 )
 
-parser.add_argument(
-    "--shuffle-data",
-    action="store_true",
-    help="Flag to shuffle data"
-)
+parser.add_argument("--shuffle-data", action="store_true", help="Flag to shuffle data")
 
 parser.add_argument(
     "--plot-distribution",
     action="store_true",
-    help="Plots distribution of Lipinski features in dataset"
+    help="Plots distribution of Lipinski features in dataset",
 )
 
 parser.add_argument(
-    "--rename-cols",
-    default=None,
-    help="Dictionary to rename columns (e.g., \n \
+    "--rename-cols", default=None, help="Dictionary to rename columns (e.g., \n \
         {'Boiling Point {measured, converted}: 'Boiling _Point, 'Unit, K' : 'Unit'})"
 )
 # endregion
@@ -116,7 +104,7 @@ cleanAndSaveDataset(
     rename=rename_cols,
     shuffle_rows=args.shuffle_data,
     plot_feature_distribution=args.plot_distribution,
-    id_prefix=args.id_prefix
+    id_prefix=args.id_prefix,
 )
 
 addNewDatasetPaths(
@@ -124,6 +112,6 @@ addNewDatasetPaths(
     target_file=cleaned_data_path.name,
     dataset_prefix=dataset_name,
     dataset_folder_name=dataset_name,
-    json_path=PATHS_JSON
+    json_path=PATHS_JSON,
 )
 # endregion

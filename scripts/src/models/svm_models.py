@@ -7,7 +7,4 @@ from sklearn.preprocessing import StandardScaler
 class SVRegressor(RegressorBase):
 
     def _create_estimator(self):
-       return Pipeline([
-           ('scaler', StandardScaler()),
-           ("svr", SVR())
-       ])
+        return Pipeline([("scaler", StandardScaler()), ("svr", SVR())])

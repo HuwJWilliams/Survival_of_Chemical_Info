@@ -24,29 +24,34 @@ sys.path.insert(0, str(SRC_DIR / "visualisation"))
 from vis import Visualise
 
 sys.path.insert(0, str(SRC_DIR / "misc"))
-from misc_fns import (center_rows, scale_rows, 
-                      center_columns, scale_columns,
-                      get_ids_in_mw_range)
+from misc_fns import (
+    center_rows,
+    scale_rows,
+    center_columns,
+    scale_columns,
+    get_ids_in_mw_range,
+)
 
 sys.path.insert(0, str(SCRIPTS_DIR / "config"))
-from pipeline_config import DEFAULT_TARGET_COLUMNS, SUPPORTED_FEATURE_SETS, resolve_target_column
+from pipeline_config import (
+    DEFAULT_TARGET_COLUMNS,
+    SUPPORTED_FEATURE_SETS,
+    resolve_target_column,
+)
+
 # endregion
 
 # region Class and Parser Setup
 v = Visualise(save_all=False)
 
-parser = argparse.ArgumentParser(
-    description="Generating PCA analysis plots"
-)
+parser = argparse.ArgumentParser(description="Generating PCA analysis plots")
 
 feature_ls = list(PATHS["full_features"]["all"].keys())
 # endregion
 
 # region Argument Parsing
 parser.add_argument(
-    "--type",
-    choices=["mol", "feat", "joined"],
-    help="Type of PCA analysis to do.\n \
+    "--type", choices=["mol", "feat", "joined"], help="Type of PCA analysis to do.\n \
           'mol' shows the PCA analysis of molecules \n \
           'feat' shows the PCA analysis of features \n \
           'joined' shows molecule PCA on joined columns from all --feats"
@@ -57,21 +62,21 @@ parser.add_argument(
     nargs="+",
     choices=SUPPORTED_FEATURE_SETS,
     default=["rdkit", "mordred"],
-    help=f"Feature sets to perform analysis with. Choices:\n{SUPPORTED_FEATURE_SETS}"
+    help=f"Feature sets to perform analysis with. Choices:\n{SUPPORTED_FEATURE_SETS}",
 )
 
 parser.add_argument(
     "--feats-for-pca",
     nargs="+",
     choices=SUPPORTED_FEATURE_SETS,
-    help="Feature sets used to fit PCA space (feature mode). If omitted, uses --feats."
+    help="Feature sets used to fit PCA space (feature mode). If omitted, uses --feats.",
 )
 
 parser.add_argument(
     "--feat-groups",
     nargs="+",
     choices=SUPPORTED_FEATURE_SETS,
-    help="Feature groups/sources to display on PCA plots (feature mode). If omitted, uses --feats-for-pca."
+    help="Feature groups/sources to display on PCA plots (feature mode). If omitted, uses --feats-for-pca.",
 )
 
 targs = list(DEFAULT_TARGET_COLUMNS.keys())
@@ -80,135 +85,99 @@ parser.add_argument(
     nargs="+",
     choices=targs,
     default=["bp", "logd"],
-    help=f"Target properties to perform analysis with. Choices:\n{targs}"
+    help=f"Target properties to perform analysis with. Choices:\n{targs}",
 )
 
 parser.add_argument(
-    "--scale-all",
-    action="store_true",
-    help="Flag to scale both rows and columns"
+    "--scale-all", action="store_true", help="Flag to scale both rows and columns"
+)
+
+parser.add_argument("--scale-r", action="store_true", help="Flag to scale rows only")
+
+parser.add_argument("--scale-c", action="store_true", help="Flag to scale columns only")
+
+parser.add_argument(
+    "--center-all", action="store_true", help="Flag to center both rows and columns"
+)
+
+parser.add_argument("--center-r", action="store_true", help="Flag to center rows only")
+
+parser.add_argument(
+    "--center-c", action="store_true", help="Flag to center columns only"
 )
 
 parser.add_argument(
-    "--scale-r",
-    action="store_true",
-    help="Flag to scale rows only"
+    "--filter-mw", nargs=2, type=int, help="Two molecular weights bounds required"
 )
 
-parser.add_argument(
-    "--scale-c",
-    action="store_true",
-    help="Flag to scale columns only"
-)
-
-parser.add_argument(
-    "--center-all",
-    action="store_true",
-    help="Flag to center both rows and columns"
-)
-
-parser.add_argument(
-    "--center-r",
-    action="store_true",
-    help="Flag to center rows only"
-)
-
-parser.add_argument(
-    "--center-c",
-    action="store_true",
-    help="Flag to center columns only"
-)
-
-parser.add_argument(
-    "--filter-mw",
-    nargs=2,
-    type=int,
-    help="Two molecular weights bounds required"
-)
-
-parser.add_argument(
-    "--n-mols",
-    type=int,
-    help="Number of molecules to process in PCA"
-)
+parser.add_argument("--n-mols", type=int, help="Number of molecules to process in PCA")
 
 parser.add_argument(
     "--seed",
     type=int,
     default=random.randint(0, 2**32),
-    help="Random seed for making reproducible results"
+    help="Random seed for making reproducible results",
 )
 
 parser.add_argument(
-    "--n_comp",
-    type=int,
-    default=5,
-    help="Number of components to generate"
+    "--n_comp", type=int, default=5, help="Number of components to generate"
 )
 
 parser.add_argument(
-    "--biplot",
-    action="store_true",
-    help="Flag to save the bi plots for PC1 and PC2"
+    "--biplot", action="store_true", help="Flag to save the bi plots for PC1 and PC2"
 )
 
 parser.add_argument(
     "--pc-x",
     type=int,
     default=1,
-    help="Principal component to plot on X-axis of biplot"
+    help="Principal component to plot on X-axis of biplot",
 )
 
 parser.add_argument(
     "--pc-y",
     type=int,
     default=2,
-    help="Principal component to plot on Y-axis of biplot"
+    help="Principal component to plot on Y-axis of biplot",
 )
 
 parser.add_argument(
     "--remove-points",
     action="store_true",
-    help="Remove individual points on the biplot"
+    help="Remove individual points on the biplot",
 )
 
 parser.add_argument(
     "--n-loadings",
     type=int,
     default=15,
-    help="Number of loadings to plot on the biplot (sorted by highest weight)"
+    help="Number of loadings to plot on the biplot (sorted by highest weight)",
 )
 
 parser.add_argument(
-    "--not-pca",
-    action="store_true",
-    help="Flag to not run full pca plot"
+    "--not-pca", action="store_true", help="Flag to not run full pca plot"
 )
 
 parser.add_argument(
     "--heatmap",
     action="store_true",
-    help="Flag to save a PCA loadings heatmap (top features by loading magnitude)"
+    help="Flag to save a PCA loadings heatmap (top features by loading magnitude)",
 )
 
 parser.add_argument(
     "--heatmap-top-n",
     type=int,
     default=100,
-    help="Number of top loadings/features to show on the heatmap"
+    help="Number of top loadings/features to show on the heatmap",
 )
 
 parser.add_argument(
     "--save-path",
     default=str(PATHS["imp_dirs"]["results_dir"] / "pca_analysis"),
-    help="Path to save plots to"
+    help="Path to save plots to",
 )
 
-parser.add_argument(
-    "--save-name",
-    default="pca",
-    help="Name to save plot under"
-)
+parser.add_argument("--save-name", default="pca", help="Name to save plot under")
 
 args = parser.parse_args()
 
@@ -231,6 +200,7 @@ scaling_cfg = {
 # endregion
 
 # region Data Setup
+
 
 # -- DF Processing (scaling, centering and trimming)
 def trim_df(df, selected_ids=[], n_mols=None, seed=42):
@@ -269,6 +239,7 @@ def scale_df(df, cfg):
     out[num_cols] = num_df
     return out
 
+
 def debug_df(name, df):
     num = df.select_dtypes(include=[np.number])
     print(f"\n[{name}] shape={df.shape}, numeric_cols={num.shape[1]}")
@@ -276,19 +247,26 @@ def debug_df(name, df):
         return
     row_var = num.var(axis=1)
     col_var = num.var(axis=0)
-    print(f"[{name}] row-var median={row_var.median():.3e}, near0={(row_var < 1e-12).mean():.1%}")
-    print(f"[{name}] col-var median={col_var.median():.3e}, near0={(col_var < 1e-12).mean():.1%}")
-    print(f"[{name}] abs max={num.abs().to_numpy().max():.3e}, std mean={num.std(axis=0).mean():.3e}")
+    print(
+        f"[{name}] row-var median={row_var.median():.3e}, near0={(row_var < 1e-12).mean():.1%}"
+    )
+    print(
+        f"[{name}] col-var median={col_var.median():.3e}, near0={(col_var < 1e-12).mean():.1%}"
+    )
+    print(
+        f"[{name}] abs max={num.abs().to_numpy().max():.3e}, std mean={num.std(axis=0).mean():.3e}"
+    )
+
 
 mw_filtered_ids = []
 mw_bounds = args.filter_mw
 if mw_bounds is not None:
     rdkit_df = pd.read_csv(PATHS["full_features"]["all"]["rdkit"], index_col=0)
     mw_filtered_ids = get_ids_in_mw_range(
-                    rdkit_df,
-                    min_mw=mw_bounds[0],
-                    max_mw=mw_bounds[1],
-                )
+        rdkit_df,
+        min_mw=mw_bounds[0],
+        max_mw=mw_bounds[1],
+    )
 
 # endregion
 
@@ -351,13 +329,15 @@ if args.type == "mol":
                 legend_fontsize=10,
                 point_size=point_size,
                 point_alpha=point_alpha,
-                show_legend=show_legend
+                show_legend=show_legend,
             )
             loadings_df_out = loadings_df
 
         if args.heatmap:
             if loadings_df_out is None:
-                print(f"Skipping heatmap for {feat}: no loadings available (enable --biplot or full PCA).")
+                print(
+                    f"Skipping heatmap for {feat}: no loadings available (enable --biplot or full PCA)."
+                )
             else:
                 v.plotLoadingsHeatmap(
                     loadings_df=loadings_df_out,
@@ -381,11 +361,11 @@ elif args.type == "feat":
         temp_df = temp_df.select_dtypes(include=[np.number]).copy()
         temp_df = trim_df(
             temp_df, selected_ids=mw_filtered_ids, n_mols=args.n_mols, seed=args.seed
-            )
+        )
         temp_df = temp_df.T
         temp_df = scale_df(temp_df, scaling_cfg)
         temp_df["Source"] = feat
-        
+
         final_pca_df = pd.concat([final_pca_df, temp_df], axis=0)
         final_pca_df = final_pca_df.dropna(axis=1)
 
@@ -401,7 +381,7 @@ elif args.type == "feat":
             axis_fontsize=14,
             label_fontsize=10,
             legend_fontsize=10,
-            scale=False
+            scale=False,
         )
         loadings_df_out = loadings_df
 
@@ -427,13 +407,15 @@ elif args.type == "feat":
             scale=False,
             point_size=point_size,
             point_alpha=point_alpha,
-            show_legend=show_legend
+            show_legend=show_legend,
         )
         loadings_df_out = loadings_df
 
     if args.heatmap:
         if loadings_df_out is None:
-            print("Skipping heatmap: no loadings available (enable --biplot or full PCA).")
+            print(
+                "Skipping heatmap: no loadings available (enable --biplot or full PCA)."
+            )
         else:
             v.plotLoadingsHeatmap(
                 loadings_df=loadings_df_out,
@@ -526,7 +508,9 @@ elif args.type == "joined":
 
     if args.heatmap:
         if loadings_df_out is None:
-            print("Skipping heatmap: no loadings available (enable --biplot or full PCA).")
+            print(
+                "Skipping heatmap: no loadings available (enable --biplot or full PCA)."
+            )
         else:
             v.plotLoadingsHeatmap(
                 loadings_df=loadings_df_out,

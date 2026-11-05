@@ -8,7 +8,7 @@ run_2 = False  # Average descriptor performance
 run_3 = False  # RDKit feature importance for Mordred autocorrelation
 run_4 = False  # Atomic-mass autocorrelation distributions
 run_5 = False  # Fine-tuned vs ID-trimmed base predictions
-run_6 = True   # Classification ROC/AUC curves
+run_6 = True  # Classification ROC/AUC curves
 
 # Try binary descriptors in random order until this many plots succeed.
 ROC_PLOT_COUNT = 5
@@ -41,7 +41,6 @@ if run_2:
         "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/pred_mordred_avg_transformers/descriptor_r2_by_model_with_average.csv",
         index_col=0,
     )
-
 
     def averageExperimentPerformanceTotalDescriptors(
         exp: str,
@@ -127,10 +126,11 @@ if run_2:
         )
 
         if save:
-            total_average_df.to_csv(exp_dir / "total_descriptor_average.csv", index=False)
+            total_average_df.to_csv(
+                exp_dir / "total_descriptor_average.csv", index=False
+            )
 
         return total_average_df
-
 
     import sys
     from pathlib import Path
@@ -177,11 +177,14 @@ if run_2:
 # %% Plot top RDKit features for predicting Mordred Autocorrelation descriptors
 if run_3:
     import sys
+
     CONFIG_DIR = Path(__file__).resolve().parents[2] / "run" / "config"
     sys.path.insert(0, str(CONFIG_DIR))
     from config import FULL_PATHING, SRC_DIR
 
-    cfp_block = FULL_PATHING["prediction_output_dirs"]["lipinski_cross_feature_predictions"]["all"]
+    cfp_block = FULL_PATHING["prediction_output_dirs"][
+        "lipinski_cross_feature_predictions"
+    ]["all"]
     sys.path.insert(0, str(SRC_DIR / "visualisation"))
     from vis import Visualise
 
@@ -207,7 +210,9 @@ if run_3:
 
     # Mean importance of each RDKit feature across all
     # Autocorrelation Mordred descriptors
-    original_data["Importance_Autocorrelation"] = original_data[cols_to_avg].mean(axis=1)
+    original_data["Importance_Autocorrelation"] = original_data[cols_to_avg].mean(
+        axis=1
+    )
 
     v.plotFeatureImportance(
         data=original_data,
@@ -221,6 +226,7 @@ if run_3:
 # %% Plot Mordred atomic-mass autocorrelation descriptor distributions
 if run_4:
     import sys
+
     CONFIG_DIR = Path(__file__).resolve().parents[2] / "run" / "config"
     sys.path.insert(0, str(CONFIG_DIR))
     from config import FULL_PATHING, SRC_DIR
@@ -251,7 +257,9 @@ if run_4:
     print(f"Loaded Mordred features from: {mordred_features_path}")
 
     for family in AUTOCORR_FAMILIES:
-        mass_pattern = re.compile(rf"^{family}(?P<lag>\d+){PROPERTY_SUFFIX}(?:_mordred)?$")
+        mass_pattern = re.compile(
+            rf"^{family}(?P<lag>\d+){PROPERTY_SUFFIX}(?:_mordred)?$"
+        )
 
         mass_cols = []
         for col in mordred_features.columns:
@@ -270,7 +278,9 @@ if run_4:
         n_raw_values = []
 
         for col in mass_cols:
-            non_nan_values = pd.to_numeric(mordred_features[col], errors="coerce").dropna()
+            non_nan_values = pd.to_numeric(
+                mordred_features[col], errors="coerce"
+            ).dropna()
             percentile_cutoff = non_nan_values.quantile(TRAINING_PERCENTILE)
             trained_values = non_nan_values.loc[non_nan_values <= percentile_cutoff]
 
@@ -367,7 +377,6 @@ if run_5:
     sys.path.insert(0, str(CONFIG_DIR))
     from config import FULL_PATHING, TARGET_COLUMNS
 
-
     FT_BASE_COMPARISONS = [
         ("molformer-c3-1b", "ft-random-molformer-c3-1b"),
         ("molformer-c3-1b", "ft-scaffold-molformer-c3-1b"),
@@ -386,7 +395,6 @@ if run_5:
         ("chemberta-sey", "ft-random-chemberta-sey"),
         ("chemberta-sey", "ft-scaffold-chemberta-sey"),
     ]
-
 
     def _read_target_and_prediction(
         prop: str,
@@ -433,7 +441,6 @@ if run_5:
 
         return target_df, pred_df, target_col, pred_col
 
-
     def _make_eval_df(
         target_df: pd.DataFrame,
         pred_df: pd.DataFrame,
@@ -460,7 +467,6 @@ if run_5:
             }
         ).dropna()
 
-
     def _score_eval_df(eval_df: pd.DataFrame) -> dict:
         if len(eval_df) < 2:
             return {
@@ -484,7 +490,6 @@ if run_5:
             "sdep": float((err - bias).pow(2).mean() ** 0.5),
         }
 
-
     def _plot_true_vs_pred_panel(
         panel_dfs: list[tuple[str, pd.DataFrame, dict]],
         prop: str,
@@ -495,7 +500,9 @@ if run_5:
     ) -> None:
         non_empty_dfs = [eval_df for _, eval_df, _ in panel_dfs if not eval_df.empty]
         if not non_empty_dfs:
-            print(f"Skipping plot for {prop} / {base_feature} vs {ft_feature}: no rows.")
+            print(
+                f"Skipping plot for {prop} / {base_feature} vs {ft_feature}: no rows."
+            )
             return
 
         all_vals = pd.concat(
@@ -560,7 +567,6 @@ if run_5:
             bbox_inches="tight",
         )
         plt.close(fig)
-
 
     def plot_fine_tune_trimmed_id_comparison(
         properties: list[str] | None = None,
@@ -725,7 +731,6 @@ if run_5:
 
         return summary_df
 
-
     # Run all configured property/base/fine-tuned comparisons.
     ft_trimmed_id_summary = plot_fine_tune_trimmed_id_comparison()
 
@@ -757,7 +762,6 @@ if run_6:
         "lipinski_embeddings_and_descriptor_predictions/pred_mordred_tr_rdkit"
     )
 
-
     def plot_mordred_classification_roc(
         experiment_dir=CLASSIFICATION_EXPERIMENT_DIR,
         rdkit_path=None,
@@ -783,12 +787,17 @@ if run_6:
 
         def update(message):
             elapsed = perf_counter() - started
-            print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [ROC +{elapsed:.1f}s] {message}", flush=True)
+            print(
+                f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [ROC +{elapsed:.1f}s] {message}",
+                flush=True,
+            )
 
         experiment_dir = Path(experiment_dir)
         if not isinstance(plot_count, int) or plot_count < 1:
             raise ValueError("plot_count must be a positive integer")
-        update(f"Reading descriptor results: {experiment_dir / 'pred_mordred_tr_rdkit.csv'}")
+        update(
+            f"Reading descriptor results: {experiment_dir / 'pred_mordred_tr_rdkit.csv'}"
+        )
         results = pd.read_csv(experiment_dir / "pred_mordred_tr_rdkit.csv", index_col=0)
         results.index = results.index.astype(str).str.strip()
         if not results.index.is_unique:
@@ -796,24 +805,34 @@ if run_6:
         classification = results.loc[
             results["task_type"] == "binary_classification"
         ].sample(frac=1, random_state=random_seed)
-        update(f"Trying binary descriptors in random order until {plot_count} plots succeed")
+        update(
+            f"Trying binary descriptors in random order until {plot_count} plots succeed"
+        )
         output_dir = experiment_dir / "classification_roc" / "training_ids_excluded"
         output_dir.mkdir(parents=True, exist_ok=True)
         classification.to_csv(output_dir / "classification_descriptors.csv")
-        update(f"Found {len(classification)} classification descriptors: "
-               f"{classification['task_type'].value_counts().to_dict()}. Output: {output_dir}")
+        update(
+            f"Found {len(classification)} classification descriptors: "
+            f"{classification['task_type'].value_counts().to_dict()}. Output: {output_dir}"
+        )
         if classification.empty:
             update("No classification descriptors found.")
             return pd.DataFrame()
 
         training_ids_path = experiment_dir / "training_data" / "training_ids.csv"
         update(f"Reading mandatory training-ID exclusions: {training_ids_path}")
-        training_id_frame = pd.read_csv(training_ids_path, dtype=str, keep_default_na=False)
+        training_id_frame = pd.read_csv(
+            training_ids_path, dtype=str, keep_default_na=False
+        )
         if "ID" not in training_id_frame.columns:
-            raise ValueError(f"Training ID file must contain an ID column: {training_ids_path}")
+            raise ValueError(
+                f"Training ID file must contain an ID column: {training_ids_path}"
+            )
         training_id_values = training_id_frame["ID"].str.strip()
         if training_id_values.empty or training_id_values.eq("").any():
-            raise ValueError("Training ID file is empty or contains blank IDs; refusing to evaluate")
+            raise ValueError(
+                "Training ID file is empty or contains blank IDs; refusing to evaluate"
+            )
         training_ids = pd.Index(training_id_values.unique())
         update(f"Loaded {len(training_ids):,} unique training IDs to exclude")
 
@@ -827,8 +846,12 @@ if run_6:
             frames = []
             for file_number, p in enumerate(files, 1):
                 update(f"Reading feature file {file_number}/{len(files)}: {p}")
-                frames.append(pd.read_csv(p, index_col="ID", dtype={"ID": str}, low_memory=False))
-                update(f"Loaded {frames[-1].shape[0]:,} rows, {frames[-1].shape[1]:,} columns")
+                frames.append(
+                    pd.read_csv(p, index_col="ID", dtype={"ID": str}, low_memory=False)
+                )
+                update(
+                    f"Loaded {frames[-1].shape[0]:,} rows, {frames[-1].shape[1]:,} columns"
+                )
             frame = pd.concat(frames)
             del frames
             if frame.index.isna().any():
@@ -841,25 +864,38 @@ if run_6:
             if exclude_training:
                 excluded = frame.index.isin(training_ids)
                 frame = frame.loc[~excluded].copy()
-                update(f"Excluded {int(excluded.sum()):,} training molecules from {path}; "
-                       f"{len(frame):,} rows remain")
+                update(
+                    f"Excluded {int(excluded.sum()):,} training molecules from {path}; "
+                    f"{len(frame):,} rows remain"
+                )
                 if frame.empty:
-                    raise ValueError(f"No evaluation molecules remain after training-ID exclusion in {path}")
+                    raise ValueError(
+                        f"No evaluation molecules remain after training-ID exclusion in {path}"
+                    )
             # Retain constant/high-missing columns: the saved model, rather
             # than a new feature-selection pass, determines its input schema.
             # Do not infer imputation values from evaluation data or impute
             # true labels. Invalid rows are removed per descriptor below.
-            update(f"Cleaning features: {frame.shape[0]:,} rows, {frame.shape[1]:,} columns")
-            frame, _ = cleanFeatureDF(
-                frame, max_nan_fraction=1.0, drop_constant_cols=False,
-                median_impute=False, correlation_threshold=None,
+            update(
+                f"Cleaning features: {frame.shape[0]:,} rows, {frame.shape[1]:,} columns"
             )
-            update(f"Cleaning complete: {frame.shape[0]:,} rows, {frame.shape[1]:,} columns")
+            frame, _ = cleanFeatureDF(
+                frame,
+                max_nan_fraction=1.0,
+                drop_constant_cols=False,
+                median_impute=False,
+                correlation_threshold=None,
+            )
+            update(
+                f"Cleaning complete: {frame.shape[0]:,} rows, {frame.shape[1]:,} columns"
+            )
             return frame
 
         # Evaluate on the full dataset, excluding the saved training IDs.
         configured = FULL_PATHING["full_features"]["all"]
-        features = load_features(rdkit_path if rdkit_path is not None else configured["rdkit"])
+        features = load_features(
+            rdkit_path if rdkit_path is not None else configured["rdkit"]
+        )
         targets = load_features(
             mordred_path if mordred_path is not None else configured["mordred"],
             exclude_training=False,
@@ -867,7 +903,9 @@ if run_6:
         training_targets = targets
         common_ids = features.index.intersection(targets.index)
         if common_ids.empty:
-            raise ValueError("No common evaluation IDs remain after excluding training molecules")
+            raise ValueError(
+                "No common evaluation IDs remain after excluding training molecules"
+            )
         features, targets = features.loc[common_ids], targets.loc[common_ids]
         update(f"Aligned RDKit and Mordred data: {len(common_ids):,} molecule IDs")
         model_dir = output_dir / "extracted_models"
@@ -884,52 +922,84 @@ if run_6:
                     members.setdefault(Path(member.name).name, []).append(member)
                 if member_number % 100 == 0:
                     update(f"Scanned {member_number:,} archive entries")
-            update(f"Archive scan complete: {sum(map(len, members.values())):,} regular files")
+            update(
+                f"Archive scan complete: {sum(map(len, members.values())):,} regular files"
+            )
             for number, (descriptor, result) in enumerate(classification.iterrows(), 1):
                 if plotted >= plot_count:
                     break
                 descriptor = str(descriptor).strip()
                 descriptor_started = perf_counter()
-                update(f"[{number}/{len(classification)}] Starting {descriptor} ({result['task_type']})")
+                update(
+                    f"[{number}/{len(classification)}] Starting {descriptor} ({result['task_type']})"
+                )
                 fig = None
                 try:
                     matches = members.get(f"{descriptor}_model.pkl.gz", [])
                     if not matches:
-                        status_rows.append(dict(descriptor=descriptor, status="missing_model", error="No matching model in archive"))
-                        update(f"SKIPPING {descriptor}: model missing; trying another binary descriptor")
+                        status_rows.append(
+                            dict(
+                                descriptor=descriptor,
+                                status="missing_model",
+                                error="No matching model in archive",
+                            )
+                        )
+                        update(
+                            f"SKIPPING {descriptor}: model missing; trying another binary descriptor"
+                        )
                         continue
                     if len(matches) != 1:
-                        raise ValueError(f"Expected one model in archive; found {len(matches)}")
+                        raise ValueError(
+                            f"Expected one model in archive; found {len(matches)}"
+                        )
                     # Copy a regular member to a generated filename; archive paths
                     # and links cannot escape the extraction directory.
                     safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", descriptor)
                     stem = f"{number:04d}_{safe_name}"
                     model_path = model_dir / f"{stem}_model.pkl.gz"
-                    update(f"Extracting {matches[0].name} ({matches[0].size / 1024**2:.1f} MiB)")
-                    with archive.extractfile(matches[0]) as source, model_path.open("wb") as dest:
+                    update(
+                        f"Extracting {matches[0].name} ({matches[0].size / 1024**2:.1f} MiB)"
+                    )
+                    with archive.extractfile(matches[0]) as source, model_path.open(
+                        "wb"
+                    ) as dest:
                         shutil.copyfileobj(source, dest)
                     update(f"Loading model: {model_path}")
                     model = joblib.load(model_path)
-                    update("Model loaded; aligning predictors and filtering evaluation rows")
+                    update(
+                        "Model loaded; aligning predictors and filtering evaluation rows"
+                    )
                     if not hasattr(model, "feature_names_in_"):
-                        raise ValueError("Model lacks feature names; cannot verify predictor order")
+                        raise ValueError(
+                            "Model lacks feature names; cannot verify predictor order"
+                        )
                     required_features = list(model.feature_names_in_)
-                    missing_features = [name for name in required_features if name not in features.columns]
+                    missing_features = [
+                        name
+                        for name in required_features
+                        if name not in features.columns
+                    ]
                     if missing_features:
                         raise ValueError(
                             f"Model-required RDKit descriptors are absent from the source data: {missing_features}. "
                             "Provide rdkit_path pointing to the feature dataset used for training."
                         )
                     x = features.loc[:, required_features]
-                    update(f"Selected all {len(required_features)} model-trained RDKit inputs in training order")
+                    update(
+                        f"Selected all {len(required_features)} model-trained RDKit inputs in training order"
+                    )
                     y = targets[descriptor]
                     if pd.api.types.is_numeric_dtype(y):
                         y = y.round()
                     classes = np.asarray(model.classes_)
                     expected_binary = result["task_type"] == "binary_classification"
-                    if (expected_binary and len(classes) != 2) or (not expected_binary and len(classes) < 3):
+                    if (expected_binary and len(classes) != 2) or (
+                        not expected_binary and len(classes) < 3
+                    ):
                         raise ValueError("Model classes disagree with CSV task_type")
-                    train_ids_for_target = training_targets.index.intersection(training_ids)
+                    train_ids_for_target = training_targets.index.intersection(
+                        training_ids
+                    )
                     train_y = training_targets.loc[train_ids_for_target, descriptor]
                     if pd.api.types.is_numeric_dtype(train_y):
                         train_y = train_y.round()
@@ -941,39 +1011,57 @@ if run_6:
                     input_values = x.to_numpy(dtype=np.float64)
                     float32_limit = np.finfo(np.float32).max
                     finite_values = np.isfinite(input_values)
-                    oversized_values = finite_values & (np.abs(input_values) > float32_limit)
+                    oversized_values = finite_values & (
+                        np.abs(input_values) > float32_limit
+                    )
                     valid_input_rows = (finite_values & ~oversized_values).all(axis=1)
                     if oversized_values.any():
-                        affected_columns = x.columns[oversized_values.any(axis=0)].tolist()
-                        update(f"Excluding {int(oversized_values.any(axis=1).sum()):,} rows "
-                               f"with inputs outside float32 range; descriptors: {affected_columns}")
-                    update(f"Non-finite input rows: {int((~finite_values.all(axis=1)).sum()):,}")
+                        affected_columns = x.columns[
+                            oversized_values.any(axis=0)
+                        ].tolist()
+                        update(
+                            f"Excluding {int(oversized_values.any(axis=1).sum()):,} rows "
+                            f"with inputs outside float32 range; descriptors: {affected_columns}"
+                        )
+                    update(
+                        f"Non-finite input rows: {int((~finite_values.all(axis=1)).sum()):,}"
+                    )
                     keep = y.isin(classes) & valid_input_rows
-                    update(f"Keeping {int(keep.sum()):,}/{len(keep):,} rows with supported labels "
-                           "and finite, float32-representable inputs")
+                    update(
+                        f"Keeping {int(keep.sum()):,}/{len(keep):,} rows with supported labels "
+                        "and finite, float32-representable inputs"
+                    )
                     x, y = x.loc[keep], y.loc[keep]
                     eval_counts = y.value_counts(dropna=False)
                     for cls in classes:
-                        class_count_rows.append(dict(
-                            descriptor=descriptor,
-                            task_type=result["task_type"],
-                            class_label=cls,
-                            training_count=int(train_counts.get(cls, 0)),
-                            test_count=int(eval_counts.get(cls, 0)),
-                            training_total=int(train_counts.sum()),
-                            test_total=int(eval_counts.sum()),
-                            evaluation="training_ids_excluded",
-                            status="ok",
-                        ))
-                    update("Class counts after filtering: "
-                           f"training={train_counts.to_dict()}, test={eval_counts.to_dict()}")
+                        class_count_rows.append(
+                            dict(
+                                descriptor=descriptor,
+                                task_type=result["task_type"],
+                                class_label=cls,
+                                training_count=int(train_counts.get(cls, 0)),
+                                test_count=int(eval_counts.get(cls, 0)),
+                                training_total=int(train_counts.sum()),
+                                test_total=int(eval_counts.sum()),
+                                evaluation="training_ids_excluded",
+                                status="ok",
+                            )
+                        )
+                    update(
+                        "Class counts after filtering: "
+                        f"training={train_counts.to_dict()}, test={eval_counts.to_dict()}"
+                    )
                     x = x.astype(np.float32)
                     if x.index.isin(training_ids).any():
-                        raise RuntimeError("Training-ID exclusion failed; refusing to predict")
+                        raise RuntimeError(
+                            "Training-ID exclusion failed; refusing to predict"
+                        )
                     if y.nunique() < 2:
                         raise ValueError("Fewer than two classes available for ROC")
-                    update(f"Predicting probabilities for {len(y):,} rows, "
-                           f"{x.shape[1]:,} predictors, classes={classes.tolist()}")
+                    update(
+                        f"Predicting probabilities for {len(y):,} rows, "
+                        f"{x.shape[1]:,} predictors, classes={classes.tolist()}"
+                    )
                     probabilities = np.asarray(model.predict_proba(x))
                     update("Prediction complete; calculating ROC curves")
                     fig, ax = plt.subplots(figsize=(8, 6))
@@ -982,29 +1070,49 @@ if run_6:
                     for j in indices:
                         binary_y = (y.to_numpy() == classes[j]).astype(int)
                         if np.unique(binary_y).size < 2:
-                            update(f"Class {classes[j]}: skipping ROC (class absent or no negatives)")
-                            descriptor_rows.append(dict(
-                                descriptor=descriptor, task_type=result["task_type"],
-                                class_label=classes[j], auc=np.nan, n=len(y),
-                                evaluation="training_ids_excluded", status="class absent or no negatives",
-                            ))
+                            update(
+                                f"Class {classes[j]}: skipping ROC (class absent or no negatives)"
+                            )
+                            descriptor_rows.append(
+                                dict(
+                                    descriptor=descriptor,
+                                    task_type=result["task_type"],
+                                    class_label=classes[j],
+                                    auc=np.nan,
+                                    n=len(y),
+                                    evaluation="training_ids_excluded",
+                                    status="class absent or no negatives",
+                                )
+                            )
                             continue
                         fpr, tpr, _ = roc_curve(binary_y, probabilities[:, j])
                         score = auc(fpr, tpr)
                         update(f"Class {classes[j]}: AUC={score:.4f}")
-                        ax.plot(fpr, tpr, label=f"Class {classes[j]} (AUC = {score:.3f})")
-                        descriptor_rows.append(dict(
-                            descriptor=descriptor, task_type=result["task_type"],
-                            class_label=classes[j], auc=score, n=len(y),
-                            evaluation="training_ids_excluded", status="ok",
-                        ))
+                        ax.plot(
+                            fpr, tpr, label=f"Class {classes[j]} (AUC = {score:.3f})"
+                        )
+                        descriptor_rows.append(
+                            dict(
+                                descriptor=descriptor,
+                                task_type=result["task_type"],
+                                class_label=classes[j],
+                                auc=score,
+                                n=len(y),
+                                evaluation="training_ids_excluded",
+                                status="ok",
+                            )
+                        )
                     macro = np.mean([row["auc"] for row in descriptor_rows])
                     ax.plot([0, 1], [0, 1], "k--", alpha=0.5, label="Chance")
-                    ax.set(xlim=(0, 1), ylim=(0, 1.02),
-                           xlabel="False positive rate", ylabel="True positive rate",
-                           title=f"{descriptor}: {'binary' if expected_binary else 'one-vs-rest'} ROC\n"
-                                 f"Listed training IDs excluded; n={len(y)}"
-                                 + (f"; macro AUC={macro:.3f}" if not expected_binary else ""))
+                    ax.set(
+                        xlim=(0, 1),
+                        ylim=(0, 1.02),
+                        xlabel="False positive rate",
+                        ylabel="True positive rate",
+                        title=f"{descriptor}: {'binary' if expected_binary else 'one-vs-rest'} ROC\n"
+                        f"Listed training IDs excluded; n={len(y)}"
+                        + (f"; macro AUC={macro:.3f}" if not expected_binary else ""),
+                    )
                     ax.legend(loc="lower right")
                     ax.grid(alpha=0.2)
                     fig.tight_layout()
@@ -1012,19 +1120,28 @@ if run_6:
                     update(f"Saving plot: {plot_path}")
                     fig.savefig(plot_path, dpi=300, bbox_inches="tight")
                     pd.DataFrame({"ID": x.index}).to_csv(
-                        output_dir / f"{stem}_evaluation_ids.csv", index=False,
+                        output_dir / f"{stem}_evaluation_ids.csv",
+                        index=False,
                     )
                     if show:
                         plt.show()
                     metric_rows.extend(descriptor_rows)
-                    status_rows.append(dict(descriptor=descriptor, status="plotted", error=""))
+                    status_rows.append(
+                        dict(descriptor=descriptor, status="plotted", error="")
+                    )
                     plotted += 1
-                    update(f"[{number}/{len(classification)}] Plotted {descriptor} "
-                           f"in {perf_counter() - descriptor_started:.1f}s; "
-                           f"{plotted}/{plot_count} requested plots complete")
+                    update(
+                        f"[{number}/{len(classification)}] Plotted {descriptor} "
+                        f"in {perf_counter() - descriptor_started:.1f}s; "
+                        f"{plotted}/{plot_count} requested plots complete"
+                    )
                 except Exception as exc:
-                    status_rows.append(dict(descriptor=descriptor, status="failed", error=str(exc)))
-                    update(f"[{number}/{len(classification)}] FAILED {descriptor}: {exc}")
+                    status_rows.append(
+                        dict(descriptor=descriptor, status="failed", error=str(exc))
+                    )
+                    update(
+                        f"[{number}/{len(classification)}] FAILED {descriptor}: {exc}"
+                    )
                 finally:
                     if fig is not None:
                         plt.close(fig)
@@ -1032,19 +1149,29 @@ if run_6:
         metrics = pd.DataFrame(metric_rows)
         update("Saving AUC metrics and descriptor status CSVs")
         metrics.to_csv(output_dir / "roc_auc_metrics.csv", index=False)
-        pd.DataFrame(class_count_rows).to_csv(output_dir / "roc_class_counts.csv", index=False)
+        pd.DataFrame(class_count_rows).to_csv(
+            output_dir / "roc_class_counts.csv", index=False
+        )
         pd.DataFrame(status_rows).to_csv(output_dir / "plot_status.csv", index=False)
         plotted = sum(row["status"] == "plotted" for row in status_rows)
-        selected_names = [row["descriptor"] for row in status_rows if row["status"] == "plotted"]
-        classification.loc[selected_names].to_csv(output_dir / "plotted_descriptors.csv")
+        selected_names = [
+            row["descriptor"] for row in status_rows if row["status"] == "plotted"
+        ]
+        classification.loc[selected_names].to_csv(
+            output_dir / "plotted_descriptors.csv"
+        )
         if plotted < plot_count:
-            update(f"Candidate list exhausted: only {plotted} of {plot_count} requested plots could be generated")
-        update(f"Finished: {plotted}/{plot_count} requested descriptors plotted, "
-               f"{len(status_rows) - plotted} candidates skipped or failed. "
-               f"Saved {len(metric_rows)} class AUC records and plot status to {output_dir}")
+            update(
+                f"Candidate list exhausted: only {plotted} of {plot_count} requested plots could be generated"
+            )
+        update(
+            f"Finished: {plotted}/{plot_count} requested descriptors plotted, "
+            f"{len(status_rows) - plotted} candidates skipped or failed. "
+            f"Saved {len(metric_rows)} class AUC records and plot status to {output_dir}"
+        )
         return metrics
 
-
     classification_roc_summary = plot_mordred_classification_roc(
-        plot_count=ROC_PLOT_COUNT, random_seed=ROC_RANDOM_SEED,
+        plot_count=ROC_PLOT_COUNT,
+        random_seed=ROC_RANDOM_SEED,
     )

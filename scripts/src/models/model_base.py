@@ -554,7 +554,7 @@ class ModelBase:
             self.final_training_performance,
             importance_df,
         )
-    
+
     def predict(
         self,
         feature_data: pd.DataFrame | str | Path,

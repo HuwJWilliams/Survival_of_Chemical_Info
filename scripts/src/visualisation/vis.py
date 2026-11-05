@@ -950,7 +950,7 @@ class Visualise:
         x_label: str,
         y_label: str,
         show_x_ticks: bool = True,
-        y_lims: tuple=None,
+        y_lims: tuple = None,
         title: str = " ",
         figsize: tuple = (12, 6),
         rotation: int = 45,
@@ -961,8 +961,8 @@ class Visualise:
         save_path: Union[str, Path] = None,
         save_fname: str = "barchart",
         dpi: int = 400,
-        y_err_label: str=None,
-        colour_map: dict[str, str]=None
+        y_err_label: str = None,
+        colour_map: dict[str, str] = None,
     ):
         """
         Generic function to generate a simple bar chart from a given DataFrame.
@@ -1061,7 +1061,7 @@ class Visualise:
             legend=False,
             errorbar=None,
         )
-        
+
         if y_lims is not None:
             ax.set_ylim(y_lims)
 
@@ -2766,10 +2766,11 @@ class Visualise:
 
             loaded_explainer = explainer(model, bg)
 
-            shap_values = loaded_explainer(feat_explain, 
-                                           check_additivity=False,
-                                approximate=True,
-                                )
+            shap_values = loaded_explainer(
+                feat_explain,
+                check_additivity=False,
+                approximate=True,
+            )
 
         # Global feature impact summary (distribution across explained rows)
         if plot:
@@ -2899,14 +2900,16 @@ class Visualise:
             for path in (long_shap_path, summary_shap_path):
                 if path.exists():
                     path.unlink()
-        
+
         print(
             f"Check full: {check_full}\nSave full:{save_full}\nFull path exists: {full_path.exists()}"
         )
 
         if check_full and summary_shap_path.exists():
             print(f"[SHAP] Existing summary found: {summary_shap_path}", flush=True)
-            print("[SHAP] Skipping recomputation and using saved CSV outputs.", flush=True)
+            print(
+                "[SHAP] Skipping recomputation and using saved CSV outputs.", flush=True
+            )
             return {}, pd.DataFrame()
 
         output_models = []
@@ -2936,125 +2939,125 @@ class Visualise:
                 .replace(".pkl", "")
                 .removesuffix("_model")
             )
-        
+
             print(f"[SHAP] Running model: {desc_name}", flush=True)
-        
+
             model = None
             tree_explainer = None
             shap_values = None
             vals = None
-        
+
             try:
                 model = joblib.load(model_path)
                 feat_cols = model.feature_names_in_
-        
+
                 trimmed_bg = self._align_features_to_model(
                     feats=bg,
                     trained_cols=feat_cols,
                     context=f"shapAnalysisAll::bg::{desc_name}",
                 )
-        
+
                 trimmed_ft_exp = self._align_features_to_model(
                     feats=feat_explain,
                     trained_cols=feat_cols,
                     context=f"shapAnalysisAll::explain::{desc_name}",
                 )
-        
+
                 # Do not call _clean_shap_frame here if it can drop columns.
                 # After alignment, preserve the exact model feature columns.
                 trimmed_bg = trimmed_bg.replace([np.inf, -np.inf], np.nan)
                 trimmed_ft_exp = trimmed_ft_exp.replace([np.inf, -np.inf], np.nan)
-        
+
                 medians = trimmed_bg.median(axis=0, numeric_only=True)
                 trimmed_bg = trimmed_bg.fillna(medians)
                 trimmed_ft_exp = trimmed_ft_exp.fillna(medians)
-        
+
                 trimmed_bg = trimmed_bg.astype(np.float64)
                 trimmed_ft_exp = trimmed_ft_exp.astype(np.float64)
-        
+
                 bg_np = np.ascontiguousarray(trimmed_bg.to_numpy(dtype=np.float64))
                 exp_np = np.ascontiguousarray(trimmed_ft_exp.to_numpy(dtype=np.float64))
-        
+
                 tree_explainer = shap.TreeExplainer(model, bg_np)
-        
+
                 shap_values = tree_explainer.shap_values(
                     exp_np,
                     check_additivity=False,
                 )
-        
+
                 vals = np.asarray(shap_values)
-        
+
                 if vals.ndim == 1:
                     vals = vals.reshape(-1, 1)
-        
+
                 # Handles possible multi-output shape: samples x features x outputs
                 if vals.ndim == 3:
                     vals = vals[:, :, 0]
-        
+
                 if vals.shape[0] != trimmed_ft_exp.shape[0]:
                     raise ValueError(
                         f"Row mismatch for {desc_name}: "
                         f"SHAP rows={vals.shape[0]} vs features rows={trimmed_ft_exp.shape[0]}"
                     )
-        
+
                 if vals.shape[1] != trimmed_ft_exp.shape[1]:
                     raise ValueError(
                         f"Column mismatch for {desc_name}: "
                         f"SHAP cols={vals.shape[1]} vs feature cols={trimmed_ft_exp.shape[1]}"
                     )
-        
+
                 feature_names = trimmed_ft_exp.columns.astype(str).tolist()
                 sample_ids = trimmed_ft_exp.index.astype(str).tolist()
-        
-                summary_df = pd.DataFrame({
-                    "descriptor": desc_name,
-                    "feature": feature_names,
-                    "mean_shap": vals.mean(axis=0),
-                    "mean_abs_shap": np.abs(vals).mean(axis=0),
-                    "median_shap": np.median(vals, axis=0),
-                    "positive_fraction": (vals > 0).mean(axis=0),
-                    "negative_fraction": (vals < 0).mean(axis=0),
-                })
-        
+
+                summary_df = pd.DataFrame(
+                    {
+                        "descriptor": desc_name,
+                        "feature": feature_names,
+                        "mean_shap": vals.mean(axis=0),
+                        "mean_abs_shap": np.abs(vals).mean(axis=0),
+                        "median_shap": np.median(vals, axis=0),
+                        "positive_fraction": (vals > 0).mean(axis=0),
+                        "negative_fraction": (vals < 0).mean(axis=0),
+                    }
+                )
+
                 summary_df.to_csv(
                     summary_shap_path,
                     mode="a",
                     header=not summary_shap_path.exists(),
                     index=False,
                 )
-        
+
                 shap_df = pd.DataFrame(vals, index=sample_ids, columns=feature_names)
                 value_df = pd.DataFrame(
                     trimmed_ft_exp.to_numpy(dtype=np.float64),
                     index=sample_ids,
                     columns=feature_names,
                 )
-        
+
                 long_df = (
-                    shap_df
-                    .stack()
+                    shap_df.stack()
                     .rename("shap_value")
                     .reset_index()
                     .rename(columns={"level_0": "sample_id", "level_1": "feature"})
                 )
-        
+
                 value_long_df = (
-                    value_df
-                    .stack()
+                    value_df.stack()
                     .rename("feature_value")
                     .reset_index()
                     .rename(columns={"level_0": "sample_id", "level_1": "feature"})
                 )
-        
+
                 long_df = long_df.merge(
                     value_long_df,
                     on=["sample_id", "feature"],
                     how="left",
                 )
-        
+
                 long_df.insert(0, "descriptor", desc_name)
                 long_df["abs_shap_value"] = long_df["shap_value"].abs()
-        
+
                 long_df.to_csv(
                     long_shap_path,
                     mode="a",
@@ -3062,15 +3065,15 @@ class Visualise:
                     index=False,
                     compression="gzip",
                 )
-        
+
                 # Store only compact summary in memory.
                 # Avoid storing full vals for every model unless absolutely needed.
                 shap_by_desc[desc_name] = summary_df
-        
+
             except Exception as e:
                 failed_models[desc_name] = str(e)
                 print(f"[SHAP-FAIL] {desc_name}: {e}", flush=True)
-        
+
             finally:
                 del vals
                 del shap_values
@@ -3117,28 +3120,26 @@ class Visualise:
         dpi: int = 200,
     ):
         output_dir = Path(output_dir)
-    
+
         summary_path = output_dir / "shap_feature_summary_by_model.csv"
         long_path = output_dir / "shap_values_long.csv.gz"
-    
+
         if not summary_path.exists():
             raise FileNotFoundError(f"Missing SHAP summary file: {summary_path}")
-    
+
         df = pd.read_csv(summary_path)
-    
+
         required = {"descriptor", "feature", "mean_shap", "mean_abs_shap"}
         missing = required - set(df.columns)
         if missing:
             raise ValueError(f"Missing required columns in {summary_path}: {missing}")
-    
+
         desc_to_group = {}
         for group_name, desc_ls in descriptor_groups.items():
             for desc in desc_ls:
                 desc = str(desc)
                 desc_to_group[desc] = group_name
-                desc_to_group[
-                    re.sub(r"_(rdkit|mordred|maccs)$", "", desc)
-                ] = group_name
+                desc_to_group[re.sub(r"_(rdkit|mordred|maccs)$", "", desc)] = group_name
 
         df["descriptor"] = df["descriptor"].astype(str)
         df["desc_base"] = df["descriptor"].str.replace(
@@ -3148,19 +3149,21 @@ class Visualise:
         )
 
         df["group"] = df["descriptor"].map(desc_to_group)
-        df.loc[df["group"].isna(), "group"] = (
-            df.loc[df["group"].isna(), "desc_base"].map(desc_to_group)
-        )
-    
+        df.loc[df["group"].isna(), "group"] = df.loc[
+            df["group"].isna(), "desc_base"
+        ].map(desc_to_group)
+
         missing_group = df["group"].isna().sum()
         if missing_group:
-            print(f"[GROUP SHAP] {missing_group} descriptor-feature rows could not be grouped.")
-    
+            print(
+                f"[GROUP SHAP] {missing_group} descriptor-feature rows could not be grouped."
+            )
+
         df = df.dropna(subset=["group"]).copy()
-    
+
         if df.empty:
             raise ValueError("No descriptors matched descriptor_groups.")
-    
+
         # Per-descriptor summary: one row per group/descriptor.
         descriptor_summary_df = (
             df.groupby(["group", "descriptor"], as_index=False)
@@ -3170,7 +3173,7 @@ class Visualise:
             )
             .sort_values(["group", "mean_abs_shap"], ascending=[True, False])
         )
-    
+
         # Per-group summary: one row per group.
         group_summary_df = (
             descriptor_summary_df.groupby("group", as_index=False)
@@ -3182,7 +3185,7 @@ class Visualise:
             )
             .sort_values("group_mean_mean_abs_shap", ascending=False)
         )
-    
+
         # Per-group/per-feature summary: this is the useful “what input features matter for this descriptor group?” table.
         group_feature_df = (
             df.groupby(["group", "feature"], as_index=False)
@@ -3193,83 +3196,77 @@ class Visualise:
             )
             .sort_values(["group", "mean_abs_shap"], ascending=[True, False])
         )
-    
+
         descriptor_summary_df.to_csv(
             output_dir / "descriptor_shap_summary.csv",
             index=False,
         )
-    
+
         group_summary_df.to_csv(
             output_dir / "group_shap_summary.csv",
             index=False,
         )
-    
+
         group_feature_df.to_csv(
             output_dir / "group_feature_shap_summary.csv",
             index=False,
         )
-    
+
         (
-            group_feature_df
-            .groupby("group", group_keys=False)
+            group_feature_df.groupby("group", group_keys=False)
             .head(top_n)
             .to_csv(output_dir / f"group_feature_shap_top{top_n}.csv", index=False)
         )
-    
+
         # Optional signed/absolute violin plots from long signed SHAP file.
         if make_plots and long_path.exists():
             long_df = pd.read_csv(long_path)
-    
+
             long_df["descriptor"] = long_df["descriptor"].astype(str)
-            long_df["desc_base"] = (
-                long_df["descriptor"]
-                .str.replace(r"_(rdkit|mordred|maccs)$", "", regex=True)
+            long_df["desc_base"] = long_df["descriptor"].str.replace(
+                r"_(rdkit|mordred|maccs)$", "", regex=True
             )
-    
+
             long_df["group"] = long_df["descriptor"].map(desc_to_group)
-            long_df.loc[long_df["group"].isna(), "group"] = (
-                long_df.loc[long_df["group"].isna(), "desc_base"].map(desc_to_group)
-            )
+            long_df.loc[long_df["group"].isna(), "group"] = long_df.loc[
+                long_df["group"].isna(), "desc_base"
+            ].map(desc_to_group)
             long_df = long_df.dropna(subset=["group"]).copy()
-    
+
             for group_name in sorted(long_df["group"].unique()):
                 print("Processing group plot:", group_name)
-    
+
                 group_long = long_df[long_df["group"] == group_name].copy()
-    
+
                 # Average signed SHAP across descriptors in the group for each sample-feature pair.
-                group_signed = (
-                    group_long
-                    .groupby(["sample_id", "feature"], as_index=False)
-                    .agg(shap_value=("shap_value", "mean"))
-                )
-    
+                group_signed = group_long.groupby(
+                    ["sample_id", "feature"], as_index=False
+                ).agg(shap_value=("shap_value", "mean"))
+
                 mean_abs = (
-                    group_signed
-                    .assign(abs_shap_value=group_signed["shap_value"].abs())
+                    group_signed.assign(abs_shap_value=group_signed["shap_value"].abs())
                     .groupby("feature", as_index=False)["abs_shap_value"]
                     .mean()
                     .sort_values("abs_shap_value", ascending=False)
                 )
-    
+
                 top_feats = mean_abs["feature"].head(top_n).tolist()
                 plot_df = group_signed[group_signed["feature"].isin(top_feats)]
-    
+
                 signed_wide = plot_df.pivot(
                     index="sample_id",
                     columns="feature",
                     values="shap_value",
                 )
-    
+
                 # Preserve top feature order
                 signed_wide = signed_wide[top_feats]
-    
+
                 data_signed = [
-                    signed_wide[col].dropna().values
-                    for col in signed_wide.columns
+                    signed_wide[col].dropna().values for col in signed_wide.columns
                 ]
                 pos = np.arange(1, len(top_feats) + 1)
-    
+
                 plt.figure(figsize=(12, 6))
                 plt.violinplot(
                     data_signed,
@@ -3288,12 +3285,12 @@ class Visualise:
                     dpi=dpi,
                 )
                 plt.close()
-    
+
                 data_abs = [
                     np.abs(signed_wide[col].dropna().values)
                     for col in signed_wide.columns
                 ]
-    
+
                 plt.figure(figsize=(12, 6))
                 plt.violinplot(
                     data_abs,
@@ -3312,12 +3309,14 @@ class Visualise:
                     dpi=dpi,
                 )
                 plt.close()
-    
+
         elif make_plots:
-            print(f"[GROUP SHAP] Skipping violin plots because {long_path} does not exist.")
-    
+            print(
+                f"[GROUP SHAP] Skipping violin plots because {long_path} does not exist."
+            )
+
         return descriptor_summary_df, group_summary_df
-    
+
     def shapDependencePlot(
         self,
         shap_values,
@@ -3388,14 +3387,14 @@ class Visualise:
             save_full=save_full,
             full_shap_name="full_shap_analysis.joblib.gz",
         )
-    
+
         descriptor_summary_df, group_summary_df = self.aggregateGroupShap(
             descriptor_groups=descriptor_groups,
             output_dir=output_dir,
             top_n=top_n,
             make_plots=True,
         )
-    
+
         return descriptor_summary_df, group_summary_df
 
     def plotAveragePerformance(
@@ -5530,4 +5529,3 @@ class Visualise:
             group_perf_by_task[task_name] = gp_df
 
         return group_perf_by_task
-

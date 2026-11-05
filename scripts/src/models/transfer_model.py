@@ -10,7 +10,6 @@ import joblib
 import json
 import torch
 
-
 FILE_DIR = Path(__file__).resolve()
 PROJ_DIR = FILE_DIR.parents[3]
 DATASET_DIR = PROJ_DIR / "datasets"
@@ -44,9 +43,7 @@ MODEL_REGISTRY = {
     "ridge": {
         "regression": RidgeRegressor,
     },
-    "svr": {
-        "regression": SVRegressor
-    }
+    "svr": {"regression": SVRegressor},
 }
 
 from sklearn.model_selection import KFold, StratifiedKFold
@@ -318,7 +315,7 @@ class TL:
         features_df: pd.DataFrame,
         targets_df: pd.DataFrame,
         model_name: str = "random_forest",
-        hyper_params: dict |None = None,
+        hyper_params: dict | None = None,
         output_csv: str = "total_performance.csv",
         existing_performance_csv: str = None,
         n_resamples: int = 10,
@@ -545,7 +542,7 @@ class TL:
         data_df: pd.DataFrame,
         model_name: str,
         output_csv: str = "within_set_performance.csv",
-        hyper_params: dict | None=None,
+        hyper_params: dict | None = None,
         save_path: str = "./",
         skip_existing: bool = True,
         save_models: bool = True,
@@ -771,7 +768,7 @@ class TL:
         model_name: str,
         target_column: str,
         task_type: str = "regression",
-        hyper_params: dict | None=None,
+        hyper_params: dict | None = None,
         n_resamples: int = 10,
         test_size: float = 0.3,
         cv_splits: int = 5,

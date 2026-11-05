@@ -1,6 +1,7 @@
 """
 Separated script to run any of the feature importance analysis defined in src/visualisation/vis.py
 """
+
 # region Imports and Pathing
 import sys
 import pandas as pd
@@ -27,14 +28,13 @@ from misc_fns import getMostImportantFeatures
 
 sys.path.insert(0, str(SRC_DIR / "datasets"))
 from group_descriptors import getGroups
+
 # endregion
 
 # region Class and Parser Setup
 v = Visualise()
 
-parser = argparse.ArgumentParser(
-    description="Generating Feature Importance analysis"
-)
+parser = argparse.ArgumentParser(description="Generating Feature Importance analysis")
 # endregion
 
 parser.add_argument(
@@ -58,30 +58,28 @@ parser.add_argument(
 parser.add_argument(
     "--imp-type",
     required=True,
-    help="Type of Feature Importance being used. Options: rf, shap, both"
+    help="Type of Feature Importance being used. Options: rf, shap, both",
 )
 
 parser.add_argument(
     "--results-dir",
     default="lipinski_cross_feature_predictions",
-    help="Directory holding all of the prediction directories"
+    help="Directory holding all of the prediction directories",
 )
 
 parser.add_argument(
-    "--descriptor-group",
-    default="rdkit",
-    help="Feature set to put into groups"
+    "--descriptor-group", default="rdkit", help="Feature set to put into groups"
 )
 
 parser.add_argument(
     "--save-path",
-    default=PATHS["imp_dirs"]["results_dir"] / "top_25_importance_feature_predictions"
+    default=PATHS["imp_dirs"]["results_dir"] / "top_25_importance_feature_predictions",
 )
 
 parser.add_argument(
     "--mode",
     default="avg",
-    help="Set 'avg' for feature importance averaging, or 'cum' for cumulative feature importance"
+    help="Set 'avg' for feature importance averaging, or 'cum' for cumulative feature importance",
 )
 
 parser.add_argument(
@@ -89,25 +87,21 @@ parser.add_argument(
     nargs=3,
     type=int,
     default=(0, 1, 5),
-    help="Set the minimumm and maximum and outlying boundary when colouring by importance"
+    help="Set the minimumm and maximum and outlying boundary when colouring by importance",
 )
 
 parser.add_argument(
     "--bubble",
     action="store_true",
-    help="Flag to set left plot to increase size with feature importance"
+    help="Flag to set left plot to increase size with feature importance",
 )
 
 parser.add_argument(
-    "--x-metric",
-    default="AUC",
-    help="Performance metric on the X-axis of plots"
+    "--x-metric", default="AUC", help="Performance metric on the X-axis of plots"
 )
 
 parser.add_argument(
-    "--y-metric",
-    default="Pearson_r",
-    help="Performance metric on the Y-axis of plots"
+    "--y-metric", default="Pearson_r", help="Performance metric on the Y-axis of plots"
 )
 
 args = parser.parse_args()
@@ -120,7 +114,7 @@ mode = args.mode
 save_path = Path(args.save_path)
 save_path.mkdir(parents=True, exist_ok=True)
 
-targ_exp =f"pred_{targ}_tr_{test}"
+targ_exp = f"pred_{targ}_tr_{test}"
 imp_exp = f"pred_{targ}_tr_{imp}"
 test_exp = f"pred_{imp}_tr_{test}"
 
@@ -134,7 +128,9 @@ shap_bundle = joblib.load(PRED_PATHS[imp_exp] / "shap" / "full_shap_analysis.job
 rf_fi_df = pd.read_csv(PRED_PATHS[imp_exp] / "all_feature_importance.csv", index_col=0)
 
 group_map = getGroups(args.descriptor_group)
-desc_to_group = {desc: group for group, members in group_map.items() for desc in members}
+desc_to_group = {
+    desc: group for group, members in group_map.items() for desc in members
+}
 unknown = [d for d in pred_targ_tr_imp.index if d not in desc_to_group]
 print(f"Unknown descriptors: {len(unknown)}")
 print(unknown[:100])
@@ -144,8 +140,12 @@ shap_importance_source = {
     "feature_names": shap_bundle["feat_explain"].columns.tolist(),
 }
 
-shap_avg_imp, shap_cum_imp, imp_feat_shap_count = getMostImportantFeatures(shap_importance_source, mode="shap")
-rf_avg_imp, rf_cum_imp, imp_feat_rf_count = getMostImportantFeatures(rf_fi_df, mode="rf")
+shap_avg_imp, shap_cum_imp, imp_feat_shap_count = getMostImportantFeatures(
+    shap_importance_source, mode="shap"
+)
+rf_avg_imp, rf_cum_imp, imp_feat_rf_count = getMostImportantFeatures(
+    rf_fi_df, mode="rf"
+)
 
 importance_lookup = {
     ("avg", "SHAP"): shap_avg_imp,
@@ -172,19 +172,26 @@ shap_avg_df = v.plotDescPredictionVsFeatPrediction(
     imp_type=args.imp_type,
     bubble=args.bubble,
     x_metric_col=args.x_metric,
-    y_metric_col=args.y_metric
+    y_metric_col=args.y_metric,
 )
 
 # Plotting Imp preds vs Test preds
-plot_df = pred_targ_tr_imp[[args.x_metric]].rename(columns={args.x_metric: f"{imp}_on_{targ}"}).join(
-    pred_targ_tr_test[[args.y_metric]].rename(columns={args.y_metric: f"{test}_on_{targ}"}),
-    how="inner"
-).dropna()
+plot_df = (
+    pred_targ_tr_imp[[args.x_metric]]
+    .rename(columns={args.x_metric: f"{imp}_on_{targ}"})
+    .join(
+        pred_targ_tr_test[[args.y_metric]].rename(
+            columns={args.y_metric: f"{test}_on_{targ}"}
+        ),
+        how="inner",
+    )
+    .dropna()
+)
 
 plt.figure(figsize=(7, 7))
 plt.scatter(
-    plot_df[f"{imp}_on_{targ}"],    # x
-    plot_df[f"{test}_on_{targ}"],   # y
+    plot_df[f"{imp}_on_{targ}"],  # x
+    plot_df[f"{test}_on_{targ}"],  # y
     s=25,
     alpha=0.7,
     edgecolor="none",
@@ -202,10 +209,7 @@ plt.close()
 
 
 def _plotTopFeatureCount(
-        count_map: dict,
-        method_label: str,
-        out_path: Path,
-        top_n: int = 25
+    count_map: dict, method_label: str, out_path: Path, top_n: int = 25
 ) -> list[str]:
     if not count_map:
         print(f"No features found for {method_label} histogram; skipping.")
@@ -226,7 +230,9 @@ def _plotTopFeatureCount(
 
     total_features = len(counts)
     thresholds = [20, 40, 60, 80, 100]
-    print(f"\n{method_label} top-{top_n} feature frequency summary (n={total_features} features):")
+    print(
+        f"\n{method_label} top-{top_n} feature frequency summary (n={total_features} features):"
+    )
     for thr in thresholds:
         n_above = sum(c > thr for c in counts)
         pct = (100.0 * n_above / total_features) if total_features else 0.0
@@ -244,13 +250,13 @@ def _plotTopFeatureCount(
 
     return features
 
-def _plotTopFeaturePredictions(
-        pred_df: pd.DataFrame,
-        features: list[str],
-        method_label: str,
-        out_path: Path,
-        top_n: int = 25,
 
+def _plotTopFeaturePredictions(
+    pred_df: pd.DataFrame,
+    features: list[str],
+    method_label: str,
+    out_path: Path,
+    top_n: int = 25,
 ) -> None:
     if not features:
         print(f"No features passed for {method_label} prediction bar plot; skipping.")
@@ -258,7 +264,9 @@ def _plotTopFeaturePredictions(
 
     trimmed_pred_df = pred_df.reindex(features).dropna(subset=["Pearson_r"])
     if trimmed_pred_df.empty:
-        print(f"No matching Pearson_r rows for {method_label}; skipping prediction bar plot.")
+        print(
+            f"No matching Pearson_r rows for {method_label}; skipping prediction bar plot."
+        )
         return
     plot_features = trimmed_pred_df.index.astype(str).tolist()
 
@@ -270,7 +278,7 @@ def _plotTopFeaturePredictions(
     plt.title(f"{method_label}: Prediction for Important Features in top-{top_n}")
     plt.tight_layout()
     plt.savefig(out_path, dpi=300)
-    plt.close()    
+    plt.close()
     return
 
 

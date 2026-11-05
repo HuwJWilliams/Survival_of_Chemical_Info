@@ -121,7 +121,9 @@ if args.lipinski_mols and args.property != "all":
     raise ValueError("--lipinski-mols cannot be used with a property-specific dataset.")
 property_dataset = args.property.lower()
 mols = "fit_lipinski" if args.lipinski_mols else property_dataset
+
 full_feats = FULL_PATHING["full_features"][mols]
+
 save_dir = args.save_dir
 save_path = FULL_PATHING["prediction_output_dirs"][save_dir][property_dataset][
     identifier
@@ -136,6 +138,7 @@ with open(hyperparameter_path, "r") as f:
 if model_name not in hyperparameter_config:
     raise ValueError(f"No hyperparameters configured for model '{model_name}'")
 hyper_params = hyperparameter_config[model_name]
+
 save_path.mkdir(parents=True, exist_ok=True)
 with open(save_path / f"{model_name}_hyperparameters.json", "w") as f:
     json.dump(hyper_params, f, indent=4)

@@ -2,114 +2,97 @@
 Grouping functions for molecular descriptors (RDKit, Mordred, etc.)
 Each function returns a dictionary of descriptor groups.
 """
+
 from rdkit.Chem import Descriptors
 from mordred import Calculator, descriptors
+
 
 def getRDKitGroups(prefix="_rdkit"):
     """Return RDKit descriptor groups aligned to Mordred descriptor categories."""
 
     def p(name):
         return f"{name}{prefix}"
-    
+
     def get_fragment_names():
-        return[
+        return [
             f"{name}{prefix}"
             for name, _ in Descriptors.descList
             if name.startswith("fr_")
         ]
 
     return {
-
         # --- Constitutional / Weight ---
         "Constitutional": [
-            p("MolWt"), p("HeavyAtomMolWt"), p("ExactMolWt"),
-            p("NumValenceElectrons"), p("HeavyAtomCount"),
-            p("FractionCSP3"), p("NumHeteroatoms")
+            p("MolWt"),
+            p("HeavyAtomMolWt"),
+            p("ExactMolWt"),
+            p("NumValenceElectrons"),
+            p("HeavyAtomCount"),
+            p("FractionCSP3"),
+            p("NumHeteroatoms"),
         ],
-
-        "Weight": [
-            p("MolWt"), p("ExactMolWt"), p("HeavyAtomMolWt")
-        ],
-
+        "Weight": [p("MolWt"), p("ExactMolWt"), p("HeavyAtomMolWt")],
         # --- Electronic / EState ---
         "EState": [
-            p("MaxEStateIndex"), p("MinEStateIndex"),
-            p("MaxAbsEStateIndex"), p("MinAbsEStateIndex"),
+            p("MaxEStateIndex"),
+            p("MinEStateIndex"),
+            p("MaxAbsEStateIndex"),
+            p("MinAbsEStateIndex"),
             *[p(f"EState_VSA{i}") for i in range(1, 12)],
             *[p(f"VSA_EState{i}") for i in range(1, 11)],
         ],
-
         "TopologicalCharge": [
-            p("MaxPartialCharge"), p("MinPartialCharge"),
-            p("MaxAbsPartialCharge"), p("MinAbsPartialCharge")
+            p("MaxPartialCharge"),
+            p("MinPartialCharge"),
+            p("MaxAbsPartialCharge"),
+            p("MinAbsPartialCharge"),
         ],
-
         # --- VSA / MOE-type ---
         "MoeType": [
             *[p(f"PEOE_VSA{i}") for i in range(1, 15)],
             *[p(f"SlogP_VSA{i}") for i in range(1, 13)],
             *[p(f"SMR_VSA{i}") for i in range(1, 11)],
         ],
-
         # --- Physicochemical ---
-        "SLogP": [
-            p("MolLogP"),
-            *[p(f"SlogP_VSA{i}") for i in range(1, 13)]
-        ],
-
-        "TopoPSA": [
-            p("TPSA")
-        ],
-
-        "Polarizability": [
-            p("MolMR"),
-            *[p(f"SMR_VSA{i}") for i in range(1, 11)]
-        ],
-
+        "SLogP": [p("MolLogP"), *[p(f"SlogP_VSA{i}") for i in range(1, 13)]],
+        "TopoPSA": [p("TPSA")],
+        "Polarizability": [p("MolMR"), *[p(f"SMR_VSA{i}") for i in range(1, 11)]],
         # --- Topological indices ---
         "Chi": [
-            p("Chi0"), p("Chi0n"), p("Chi0v"),
-            p("Chi1"), p("Chi1n"), p("Chi1v"),
-            p("Chi2n"), p("Chi2v"),
-            p("Chi3n"), p("Chi3v"),
-            p("Chi4n"), p("Chi4v")
+            p("Chi0"),
+            p("Chi0n"),
+            p("Chi0v"),
+            p("Chi1"),
+            p("Chi1n"),
+            p("Chi1v"),
+            p("Chi2n"),
+            p("Chi2v"),
+            p("Chi3n"),
+            p("Chi3v"),
+            p("Chi4n"),
+            p("Chi4v"),
         ],
-
-        "KappaShapeIndex": [
-            p("HallKierAlpha"), p("Kappa1"),
-            p("Kappa2"), p("Kappa3")
-        ],
-
-        "BalabanJ": [
-            p("BalabanJ")
-        ],
-
-        "BertzCT": [
-            p("BertzCT")
-        ],
-
-        "InformationContent": [
-            p("Ipc"), p("AvgIpc")
-        ],
-
+        "KappaShapeIndex": [p("HallKierAlpha"), p("Kappa1"), p("Kappa2"), p("Kappa3")],
+        "BalabanJ": [p("BalabanJ")],
+        "BertzCT": [p("BertzCT")],
+        "InformationContent": [p("Ipc"), p("AvgIpc")],
         # --- BCUT ---
         "BCUT": [
-            p("BCUT2D_MWHI"), p("BCUT2D_MWLOW"),
-            p("BCUT2D_CHGHI"), p("BCUT2D_CHGLO"),
-            p("BCUT2D_LOGPHI"), p("BCUT2D_LOGPLOW"),
-            p("BCUT2D_MRHI"), p("BCUT2D_MRLOW")
+            p("BCUT2D_MWHI"),
+            p("BCUT2D_MWLOW"),
+            p("BCUT2D_CHGHI"),
+            p("BCUT2D_CHGLO"),
+            p("BCUT2D_LOGPHI"),
+            p("BCUT2D_LOGPLOW"),
+            p("BCUT2D_MRHI"),
+            p("BCUT2D_MRLOW"),
         ],
-
         # --- Surface / geometry ---
-        "CPSA": [
-            p("LabuteASA")  # closest proxy
-        ],
-
+        "CPSA": [p("LabuteASA")],  # closest proxy
         "Geometrical": [
             p("Phi"),
             p("SPS"),
         ],
-
         # --- Rings ---
         "RingCount": [
             p("RingCount"),
@@ -123,56 +106,40 @@ def getRDKitGroups(prefix="_rdkit"):
             p("NumSaturatedHeterocycles"),
             p("NumSaturatedRings"),
             p("NumBridgeheadAtoms"),
-            p("NumHeterocycles")
+            p("NumHeterocycles"),
         ],
-
         "Aromatic": [
             p("NumAromaticCarbocycles"),
             p("NumAromaticHeterocycles"),
-            p("NumAromaticRings")
+            p("NumAromaticRings"),
         ],
-
         # --- Bonds / flexibility ---
-        "RotatableBond": [
-            p("NumRotatableBonds")
-        ],
-
+        "RotatableBond": [p("NumRotatableBonds")],
         "HydrogenBond": [
-            p("NumHAcceptors"), p("NumHDonors"),
-            p("NHOHCount"), p("NOCount")
+            p("NumHAcceptors"),
+            p("NumHDonors"),
+            p("NHOHCount"),
+            p("NOCount"),
         ],
-
-        "BondCount": [
-            p("NumAmideBonds")
-        ],
-
+        "BondCount": [p("NumAmideBonds")],
         # --- Stereo ---
         "Stereochemistry": [
             p("NumAtomStereoCenters"),
-            p("NumUnspecifiedAtomStereoCenters")
+            p("NumUnspecifiedAtomStereoCenters"),
         ],
-
         # --- Drug-likeness ---
-        "Lipinski": [
-            p("NumHAcceptors"), p("NumHDonors"),
-            p("MolLogP"), p("MolWt")
-        ],
-
-        "Druglikeness": [
-            p("qed")
-        ],
-
+        "Lipinski": [p("NumHAcceptors"), p("NumHDonors"), p("MolLogP"), p("MolWt")],
+        "Druglikeness": [p("qed")],
         # --- Fragment-based ---
-        "FragmentComplexity":
-            get_fragment_names(),
-
+        "FragmentComplexity": get_fragment_names(),
         # --- Morgan fingerprint density (non-Mordred but useful) ---
         "FingerprintDensity": [
             p("FpDensityMorgan1"),
             p("FpDensityMorgan2"),
-            p("FpDensityMorgan3")
-        ]
+            p("FpDensityMorgan3"),
+        ],
     }
+
 
 # %%
 def getMordredGroups(prefix="_mordred"):
@@ -193,6 +160,7 @@ def getMordredGroups(prefix="_mordred"):
 
     return groups
 
+
 def getMACCSGroups(prefix="_maccs"):
     """Returns grouped MACCS fingerprint bits.
 
@@ -210,77 +178,152 @@ def getMACCSGroups(prefix="_maccs"):
         return f"{bit}{prefix}"
 
     return {
-        "Inorganic-Elements": [p(bit) for bit in [
-            2, 3, 4, 5, 6, 7, 9, 10, 12, 18, 20, 35
-        ]],
-
-        "Organic-Elements": [p(bit) for bit in [
-            27, 29, 42, 46, 88, 103, 134, 161, 164
-        ]],
-
-        "Ring-Heterocycle": [p(bit) for bit in [
-            8, 11, 16, 19, 22, 36, 57, 83, 96, 98, 101,
-            120, 121, 137, 145, 163, 165
-        ]],
-
-        "Aromatic-Presence": [p(bit) for bit in [
-            125, 144, 162
-        ]],
-
-        "Aromatic-Connectivity": [p(bit) for bit in [
-            26, 59, 62, 64, 75, 87, 105, 113, 127, 133, 135, 143, 150
-        ]],
-
-        "Nitrogen-motifs": [p(bit) for bit in [
-            13, 23, 25, 32, 33, 37, 38, 47, 56,
-            65, 70, 77, 79, 80, 84, 85, 92, 94, 95,
-            97, 110, 117, 122, 156
-        ]],
-
-        "Sulfur-motifs": [p(bit) for bit in [
-            32, 33, 39, 47, 51, 55, 58, 61, 67, 81
-        ]],
-
-        "Oxygen-motifs": [p(bit) for bit in [
-            13, 15, 23, 37, 39, 48, 51, 55, 56,
-            72, 89, 92, 95, 97, 102, 110, 117,
-            123, 152
-        ]],
-
-        "Generic-Heteroatom-motifs": [p(bit) for bit in [
-            28, 30, 31, 43, 53, 54, 68, 69, 106, 107, 148
-        ]],
-
-        "Alkyl-Motifs": [p(bit) for bit in [
-            66, 74, 108, 114, 115, 116, 160
-        ]],
-
-        "CH2-Spacers": [p(bit) for bit in [
-            82, 86, 100, 109, 128, 129, 147, 153, 155
-        ]],
-
-        "Branching": [p(bit) for bit in [
-            66, 112
-        ]],
-
-        "Heteroatom-Spacing": [p(bit) for bit in [
-            90, 91, 93, 104, 111, 124, 132
-        ]],
-
-        "Bond-Unsaturation": [p(bit) for bit in [
-            14, 17, 21, 24, 34, 40, 41, 45, 49, 50,
-            52, 60, 63, 71, 73, 76, 78, 99, 119,
-            126, 136, 139, 151, 154, 157, 158
-        ]],
-
-        "Count-based": [p(bit) for bit in [
-            118, 120, 125, 127, 130, 131, 136, 138,
-            140, 141, 142, 145, 146, 149, 159
-        ]],
-
-        "Special": [p(bit) for bit in [
-            1, 44, 166
-        ]],
+        "Inorganic-Elements": [
+            p(bit) for bit in [2, 3, 4, 5, 6, 7, 9, 10, 12, 18, 20, 35]
+        ],
+        "Organic-Elements": [
+            p(bit) for bit in [27, 29, 42, 46, 88, 103, 134, 161, 164]
+        ],
+        "Ring-Heterocycle": [
+            p(bit)
+            for bit in [
+                8,
+                11,
+                16,
+                19,
+                22,
+                36,
+                57,
+                83,
+                96,
+                98,
+                101,
+                120,
+                121,
+                137,
+                145,
+                163,
+                165,
+            ]
+        ],
+        "Aromatic-Presence": [p(bit) for bit in [125, 144, 162]],
+        "Aromatic-Connectivity": [
+            p(bit)
+            for bit in [26, 59, 62, 64, 75, 87, 105, 113, 127, 133, 135, 143, 150]
+        ],
+        "Nitrogen-motifs": [
+            p(bit)
+            for bit in [
+                13,
+                23,
+                25,
+                32,
+                33,
+                37,
+                38,
+                47,
+                56,
+                65,
+                70,
+                77,
+                79,
+                80,
+                84,
+                85,
+                92,
+                94,
+                95,
+                97,
+                110,
+                117,
+                122,
+                156,
+            ]
+        ],
+        "Sulfur-motifs": [p(bit) for bit in [32, 33, 39, 47, 51, 55, 58, 61, 67, 81]],
+        "Oxygen-motifs": [
+            p(bit)
+            for bit in [
+                13,
+                15,
+                23,
+                37,
+                39,
+                48,
+                51,
+                55,
+                56,
+                72,
+                89,
+                92,
+                95,
+                97,
+                102,
+                110,
+                117,
+                123,
+                152,
+            ]
+        ],
+        "Generic-Heteroatom-motifs": [
+            p(bit) for bit in [28, 30, 31, 43, 53, 54, 68, 69, 106, 107, 148]
+        ],
+        "Alkyl-Motifs": [p(bit) for bit in [66, 74, 108, 114, 115, 116, 160]],
+        "CH2-Spacers": [p(bit) for bit in [82, 86, 100, 109, 128, 129, 147, 153, 155]],
+        "Branching": [p(bit) for bit in [66, 112]],
+        "Heteroatom-Spacing": [p(bit) for bit in [90, 91, 93, 104, 111, 124, 132]],
+        "Bond-Unsaturation": [
+            p(bit)
+            for bit in [
+                14,
+                17,
+                21,
+                24,
+                34,
+                40,
+                41,
+                45,
+                49,
+                50,
+                52,
+                60,
+                63,
+                71,
+                73,
+                76,
+                78,
+                99,
+                119,
+                126,
+                136,
+                139,
+                151,
+                154,
+                157,
+                158,
+            ]
+        ],
+        "Count-based": [
+            p(bit)
+            for bit in [
+                118,
+                120,
+                125,
+                127,
+                130,
+                131,
+                136,
+                138,
+                140,
+                141,
+                142,
+                145,
+                146,
+                149,
+                159,
+            ]
+        ],
+        "Special": [p(bit) for bit in [1, 44, 166]],
     }
 
 
@@ -293,7 +336,9 @@ def getGroups(source):
     elif source.lower() == "maccs":
         return getMACCSGroups()
     else:
-        raise ValueError(f"Unknown source '{source}'. Choose 'rdkit', 'mordred' or 'maccs'.")
+        raise ValueError(
+            f"Unknown source '{source}'. Choose 'rdkit', 'mordred' or 'maccs'."
+        )
 
 
 def findDescriptorGroup(descriptor_name: str) -> tuple[str, str]:

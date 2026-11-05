@@ -33,9 +33,11 @@ v = Visualise(save_all=False)
 FULL_PATHING = getPaths(PATHING_JSON_PATH)
 RESULTS_DIR = FULL_PATHING["imp_dirs"]["results_dir"]
 PREDS_DIR = FULL_PATHING["prediction_output_dirs"]["rf"]
-AVAILABLE_FEATURE_SETS = sorted(set(SUPPORTED_FEATURE_SETS).union(
-    feature for property_paths in PREDS_DIR.values() for feature in property_paths
-))
+AVAILABLE_FEATURE_SETS = sorted(
+    set(SUPPORTED_FEATURE_SETS).union(
+        feature for property_paths in PREDS_DIR.values() for feature in property_paths
+    )
+)
 
 # %% ===== Argument Parsing =====
 
@@ -75,10 +77,16 @@ parser.add_argument(
 
 args = parser.parse_args()
 args.properties, feature_sets = selectPPAnalysisInputs(
-    PREDS_DIR, FULL_PATHING["targets"], TARGET_COLUMNS, args.properties, args.feature_sets,
+    PREDS_DIR,
+    FULL_PATHING["targets"],
+    TARGET_COLUMNS,
+    args.properties,
+    args.feature_sets,
 )
 if not args.properties:
-    parser.error("No selected properties have both a target column and target path configured.")
+    parser.error(
+        "No selected properties have both a target column and target path configured."
+    )
 
 
 # %% ===== Loading the Data =====
@@ -486,14 +494,21 @@ if not iqr_external_df.empty:
             colour_map=colour_map,
         )
 
-print("Internal FT differences skipped: saved aggregate scores cannot be matched by molecule ID.")
+print(
+    "Internal FT differences skipped: saved aggregate scores cannot be matched by molecule ID."
+)
 matched_performance_rows = []
 for prop in args.properties:
     if not Path(FULL_PATHING["targets"][prop]).exists():
         print(f"Skipping matched FT comparison: missing targets for {prop}")
         continue
     matched_df = getMatchedFTPerformanceDf(
-        prop, feature_sets, FULL_PATHING, PREDS_DIR, TARGET_COLUMNS, save_path,
+        prop,
+        feature_sets,
+        FULL_PATHING,
+        PREDS_DIR,
+        TARGET_COLUMNS,
+        save_path,
     )
     if matched_df.empty:
         continue
@@ -504,15 +519,20 @@ for prop in args.properties:
             if metric_col is None:
                 continue
             ft_diff_df = plotFTDifferenceBar(
-                data=split_df, prop=prop, split_name=split_name,
-                metric_col=metric_col, save_path=save_path, colour_map=colour_map,
+                data=split_df,
+                prop=prop,
+                split_name=split_name,
+                metric_col=metric_col,
+                save_path=save_path,
+                colour_map=colour_map,
             )
             if not ft_diff_df.empty:
                 ft_difference_rows.append(ft_diff_df)
 
 if matched_performance_rows:
     pd.concat(matched_performance_rows, ignore_index=True).to_csv(
-        save_path / "ft_matched_performances.csv", index=False,
+        save_path / "ft_matched_performances.csv",
+        index=False,
     )
 
 if ft_difference_rows:

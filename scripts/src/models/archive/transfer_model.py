@@ -22,7 +22,11 @@ PALMERCHEM_SOFTWARE_ANALYSIS = Path.home() / "PalmerChem_Software" / "src" / "an
 LOG_DIR = SRC_DIR / "models" / "logs"
 
 sys.path.insert(0, str(SRC_DIR / "models"))
-from Molecular_Embedding_vs_Descriptors.scripts.src.models.archive.RF_models import RFRegressor, RFClassifier, RFMultiClassifier
+from Molecular_Embedding_vs_Descriptors.scripts.src.models.archive.RF_models import (
+    RFRegressor,
+    RFClassifier,
+    RFMultiClassifier,
+)
 
 sys.path.insert(0, str(PALMERCHEM_SOFTWARE_ANALYSIS))
 from performance_calculation import calculatePerformance
@@ -150,7 +154,6 @@ class TL:
         the number of remaining classes to 2, the task falls back to binary
         classification. If fewer than 2 classes remain the target is skipped.
         """
-
 
         total_performance_df = pd.DataFrame()
         regressor_cls = (

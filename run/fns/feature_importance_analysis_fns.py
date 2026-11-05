@@ -86,7 +86,9 @@ def SummativeDescriptorGroupImportance(
     top_n_groups: int = 50,
 ) -> pd.DataFrame:
     if feature_set not in {"mordred", "rdkit"}:
-        raise ValueError("Descriptor group importance is only supported for mordred and rdkit.")
+        raise ValueError(
+            "Descriptor group importance is only supported for mordred and rdkit."
+        )
 
     save_path = Path(save_path)
     save_path.mkdir(parents=True, exist_ok=True)
@@ -120,7 +122,10 @@ def SummativeDescriptorGroupImportance(
 
             if feature in importance_features:
                 present_features.append(feature)
-            elif base_feature not in ambiguous_bases and base_feature in importance_base_to_feature:
+            elif (
+                base_feature not in ambiguous_bases
+                and base_feature in importance_base_to_feature
+            ):
                 present_features.append(importance_base_to_feature[base_feature])
 
         present_features = sorted(set(present_features))
@@ -143,7 +148,9 @@ def SummativeDescriptorGroupImportance(
     group_importance_df = pd.DataFrame(group_rows)
 
     if group_importance_df.empty:
-        raise ValueError(f"No {feature_set} descriptor groups matched feature importance rows.")
+        raise ValueError(
+            f"No {feature_set} descriptor groups matched feature importance rows."
+        )
 
     group_importance_df = group_importance_df.sort_values(
         "Importance",
@@ -195,7 +202,6 @@ def SummativeDescriptorGroupImportance(
     )
 
     return group_importance_df
-
 
 
 def PlotDescriptorGroupImportanceHeatmaps(
@@ -313,7 +319,7 @@ def PlotDescriptorGroupImportanceHeatmaps(
             values=value_col,
             aggfunc="mean",
         )
-        
+
         average_df = average_df.dropna(axis=0, how="all")
 
         if average_df.empty:
@@ -325,8 +331,7 @@ def PlotDescriptorGroupImportanceHeatmaps(
         ]
 
         average_df.to_csv(
-            heatmap_dir
-            / f"{feature_set}_descriptor_group_average_importance.csv"
+            heatmap_dir / f"{feature_set}_descriptor_group_average_importance.csv"
         )
 
         # Mean raw importance
@@ -342,8 +347,7 @@ def PlotDescriptorGroupImportanceHeatmaps(
         ]
 
         summative_df.to_csv(
-            heatmap_dir
-            / f"{feature_set}_descriptor_group_summative_importance.csv"
+            heatmap_dir / f"{feature_set}_descriptor_group_summative_importance.csv"
         )
 
         # Maximum raw importance
@@ -355,14 +359,11 @@ def PlotDescriptorGroupImportanceHeatmaps(
         )
 
         max_importance_df = max_importance_df.loc[
-            max_importance_df.mean(axis=1)
-            .sort_values(ascending=False)
-            .index
+            max_importance_df.mean(axis=1).sort_values(ascending=False).index
         ]
 
         max_importance_df.to_csv(
-            heatmap_dir
-            / f"{feature_set}_descriptor_group_max_importance.csv"
+            heatmap_dir / f"{feature_set}_descriptor_group_max_importance.csv"
         )
 
         # Average heatmaps
@@ -370,8 +371,7 @@ def PlotDescriptorGroupImportanceHeatmaps(
             data=average_df,
             feature_set=feature_set,
             filename_prefix=(
-                f"{feature_set}_descriptor_group_"
-                "average_importance_heatmap"
+                f"{feature_set}_descriptor_group_" "average_importance_heatmap"
             ),
             title="descriptor group average feature importance",
             colorbar_label=value_col.replace("_", " "),
@@ -382,8 +382,7 @@ def PlotDescriptorGroupImportanceHeatmaps(
             data=average_df,
             feature_set=feature_set,
             filename_prefix=(
-                f"{feature_set}_descriptor_group_"
-                "average_importance_heatmap"
+                f"{feature_set}_descriptor_group_" "average_importance_heatmap"
             ),
             title="descriptor group average feature importance",
             colorbar_label=value_col.replace("_", " "),
@@ -395,8 +394,7 @@ def PlotDescriptorGroupImportanceHeatmaps(
             data=max_importance_df,
             feature_set=feature_set,
             filename_prefix=(
-                f"{feature_set}_descriptor_group_"
-                "max_importance_heatmap"
+                f"{feature_set}_descriptor_group_" "max_importance_heatmap"
             ),
             title="descriptor group maximum feature importance",
             colorbar_label="Maximum importance",
@@ -407,8 +405,7 @@ def PlotDescriptorGroupImportanceHeatmaps(
             data=max_importance_df,
             feature_set=feature_set,
             filename_prefix=(
-                f"{feature_set}_descriptor_group_"
-                "max_importance_heatmap"
+                f"{feature_set}_descriptor_group_" "max_importance_heatmap"
             ),
             title="descriptor group maximum feature importance",
             colorbar_label="Maximum importance",

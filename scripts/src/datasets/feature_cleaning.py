@@ -3,6 +3,7 @@ import pandas as pd
 
 METADATA_COLS = ["SMILES", "SELFIES", "Mols"]
 
+
 def cleanFeatureDF(
     df: pd.DataFrame,
     metadata_cols: tuple[str, ...] = ("SMILES", "SELFIES", "Mols"),
@@ -11,7 +12,6 @@ def cleanFeatureDF(
     drop_constant_cols: bool = True,
     median_impute: bool = True,
     correlation_threshold: float | None = None,
-
 ):
     df = df.copy()
 
@@ -57,8 +57,7 @@ def cleanFeatureDF(
         upper = corr.where(np.triu(np.ones(corr.shape), k=1).astype(bool))
 
         correlated_cols = [
-            col for col in upper.columns
-            if (upper[col] > correlation_threshold).any()
+            col for col in upper.columns if (upper[col] > correlation_threshold).any()
         ]
 
         if correlated_cols:
@@ -66,4 +65,3 @@ def cleanFeatureDF(
             report["dropped_correlated_cols"] = correlated_cols
 
     return df, report
-

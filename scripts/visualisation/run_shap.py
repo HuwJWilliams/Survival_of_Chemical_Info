@@ -26,14 +26,13 @@ from pipeline_config import SUPPORTED_FEATURE_SETS
 
 sys.path.insert(0, str(SRC_DIR / "datasets"))
 from group_descriptors import getGroups
+
 # endregion
 
 # region Class and Parser Setup
 v = Visualise()
 
-parser = argparse.ArgumentParser(
-    description="Generating SHAP analysis"
-)
+parser = argparse.ArgumentParser(description="Generating SHAP analysis")
 
 # endregion
 
@@ -43,7 +42,7 @@ parser.add_argument(
     required=True,
     choices=SUPPORTED_FEATURE_SETS,
     help="Feature set predicted on. Used to obtain the results directory \n \
-        (e.g., pred_{pred_set}_tr_{train_set} for cross-feature predictions) \n"
+        (e.g., pred_{pred_set}_tr_{train_set} for cross-feature predictions) \n",
 )
 
 parser.add_argument(
@@ -51,90 +50,76 @@ parser.add_argument(
     required=True,
     choices=SUPPORTED_FEATURE_SETS,
     help="Feature set trained on. Used to obtain the results directory \n \
-        (e.g., pred_{pred_set}_tr_{train_set} for cross-feature predictions) \n"
+        (e.g., pred_{pred_set}_tr_{train_set} for cross-feature predictions) \n",
 )
 
 parser.add_argument(
     "--pred-feat",
-    help="Feature to run SHAP analysis on, defaulted to MolWt for testing"
+    help="Feature to run SHAP analysis on, defaulted to MolWt for testing",
 )
 
 parser.add_argument(
     "--results-dir",
     default="cross_feature_predictions",
-    help="Pathing key in paths['prediction_output_dirs'], e.g., 'cross_feature_predictions"
+    help="Pathing key in paths['prediction_output_dirs'], e.g., 'cross_feature_predictions",
 )
 
 parser.add_argument(
     "--max-bg",
     type=int,
     default=200,
-    help="Maximum number of rows to use as the SHAP background baseline"
+    help="Maximum number of rows to use as the SHAP background baseline",
 )
 
 parser.add_argument(
-    "--max-exp",
-    type=int,
-    default=500,
-    help="Maximum rows to use for SHAP explanations"
+    "--max-exp", type=int, default=500, help="Maximum rows to use for SHAP explanations"
 )
 
 parser.add_argument(
     "--n-display",
     type=int,
     default=20,
-    help="Number of features to display on SHAP beeswarm plot"
+    help="Number of features to display on SHAP beeswarm plot",
 )
 
 parser.add_argument(
-    "--plot-shap",
-    action="store_true",
-    help="Flag to plot the SHAP beeswarm analysis"
+    "--plot-shap", action="store_true", help="Flag to plot the SHAP beeswarm analysis"
 )
 
 parser.add_argument(
-    "--plot-dep",
-    action="store_true",
-    help="Flag to plot dependence plots"
+    "--plot-dep", action="store_true", help="Flag to plot dependence plots"
 )
 
 parser.add_argument(
-    "--group-shap",
-    action="store_true",
-    help="Flag to run group SHAP analysis"
+    "--group-shap", action="store_true", help="Flag to run group SHAP analysis"
 )
 
 parser.add_argument(
-    "--top-n",
-    type=int,
-    default=12,
-    help="Showing the number of top impacting features"
+    "--top-n", type=int, default=12, help="Showing the number of top impacting features"
 )
 
 parser.add_argument(
     "--save-full-shap",
     action="store_true",
     help="Flag to store the full shap analysis csv so calculations dont need to be \
-        run over and over."
+        run over and over.",
 )
 
 parser.add_argument(
     "--check-full-shap",
     action="store_true",
     help="Flag to look for full shap CSV and use results in there first,\
-    if not present, calculate again"
+    if not present, calculate again",
 )
 
 parser.add_argument(
     "--full-feat-path",
     default="fit_lipinski",
-    help="Key in paths.json in full_features"
+    help="Key in paths.json in full_features",
 )
 
 parser.add_argument(
-    "--tmp-model-dir",
-    default=None,
-    help="Temporary dir for untarred models"
+    "--tmp-model-dir", default=None, help="Temporary dir for untarred models"
 )
 
 args = parser.parse_args()
@@ -183,7 +168,7 @@ if args.save_full_shap:
         max_explain=exp,
         save_full=args.save_full_shap,
         full_shap_name=full_shap_path.name,
-        check_full=args.check_full_shap
+        check_full=args.check_full_shap,
     )
 
 
@@ -210,14 +195,16 @@ if pred_feat is not None:
 
 if args.plot_dep:
     if shap_v is None:
-        raise ValueError("--plot-dep requires --pred-feat so single-feature SHAP can be run.")
+        raise ValueError(
+            "--plot-dep requires --pred-feat so single-feature SHAP can be run."
+        )
 
     v.shapDependencePlot(
         shap_values=shap_v,
         pred_feature=pred_feat,
         feat_explain=feat_explain,
         explainer=explainer,
-        output_dir=shap_dir
+        output_dir=shap_dir,
     )
 
 
@@ -231,7 +218,7 @@ if args.group_shap:
             max_explain=exp,
             descriptor_groups=getGroups(train_set),
             top_n=args.top_n,
-            save_full=args.save_full_shap
+            save_full=args.save_full_shap,
         )
     else:
         raise ValueError(

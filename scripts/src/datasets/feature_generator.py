@@ -10,19 +10,16 @@ from rdkit import Chem
 from rdkit.Chem import Descriptors, AllChem, rdFingerprintGenerator, MACCSkeys
 from mordred import Calculator, descriptors
 from transformers import (
-    AutoTokenizer, 
+    AutoTokenizer,
     AutoModel,
     AutoConfig,
     AutoModelForSequenceClassification,
     TrainingArguments,
     EarlyStoppingCallback,
-    Trainer
-    )
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import (
-    mean_squared_error,
-    r2_score
+    Trainer,
 )
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, r2_score
 from scipy.stats import pearsonr
 import torch
 import selfies
@@ -49,22 +46,24 @@ LOG_LEVEL = logging.DEBUG
 PATHS = getPaths()
 MIN_UNIQUE = 2
 
-# %% --- Classes & Function        
-class FeatureGenerator():
+
+# %% --- Classes & Function
+class FeatureGenerator:
     """
     Class to hold all of the feature generation functions
     """
+
     def __init__(
-            self,
-            feature_set: str,
-            log_name: str = "FG",
-            save_log: bool=True,
-            log_level= LOG_LEVEL,
-            log_identifier: str = "FeatureGenerator"
+        self,
+        feature_set: str,
+        log_name: str = "FG",
+        save_log: bool = True,
+        log_level=LOG_LEVEL,
+        log_identifier: str = "FeatureGenerator",
     ):
         """
         Class Initialiser
-        
+
         Parameters
         ----------
         feature_set     (str)      Name of the feature set to generate (currently supports:
@@ -74,12 +73,12 @@ class FeatureGenerator():
         log_level       (int)      Level of logging to save
         log_identifier  (str)      Identifier for the log
         """
-        #===== Logger Setup=====#
+        # ===== Logger Setup=====#
         self.logger = setupLogger(
             name=log_name,
             save_logger=save_log,
             level=log_level,
-            identifier=log_identifier
+            identifier=log_identifier,
         )
 
         self.feature_set = feature_set.lower()
@@ -103,13 +102,12 @@ class FeatureGenerator():
 
     # region ====== Feature Calculations
     def calcRDKit(
-            self,
-            smiles_ls: list[str],
-            id_ls: list[str],
-            drop_cols: bool=False,
-            min_unique: int=MIN_UNIQUE
+        self,
+        smiles_ls: list[str],
+        id_ls: list[str],
+        drop_cols: bool = False,
+        min_unique: int = MIN_UNIQUE,
     ) -> pd.DataFrame:
-        
         """
         Description
         -----------
@@ -120,20 +118,19 @@ class FeatureGenerator():
         smiles_ls           list[str]   List of SMILES
         id_ls               list[str]   List of IDs corresponding to each SMILE
         drop_cols           bool        Flag to drop columns with low variance
-        min_unique          int         Variance threshold for dopping columns       
+        min_unique          int         Variance threshold for dopping columns
         """
-        
+
         (parsed_ids, parsed_smiles, parsed_mols), _ = self._check_and_parse_smiles(
-            smiles_ls=smiles_ls,
-            id_ls=id_ls
+            smiles_ls=smiles_ls, id_ls=id_ls
         )
 
         self.logger.info(f"Creating RDKit descriptors for {len(smiles_ls)} smiles.")
-        
+
         df = self._setup_molecule_df(
-            id_ls=parsed_ids, smiles_ls=parsed_smiles, mol_ls = parsed_mols
-            )
-        
+            id_ls=parsed_ids, smiles_ls=parsed_smiles, mol_ls=parsed_mols
+        )
+
         self.logger.info(f"Generating descriptors for {len(df)} molecules")
         desc_dicts = df["Mols"].apply(lambda m: Descriptors.CalcMolDescriptors(m))
         desc_df = pd.DataFrame.from_records(desc_dicts.tolist(), index=df.index)
@@ -144,23 +141,24 @@ class FeatureGenerator():
         rdkit_cols = [c for c in final_df.columns if c.endswith("_rdkit")]
         before = len(final_df)
         final_df = final_df.dropna(axis=0, subset=rdkit_cols).copy()
-        self.logger.info(f"Dropped {before - len(final_df)} molecules with any NaN RDKit descriptor")
+        self.logger.info(
+            f"Dropped {before - len(final_df)} molecules with any NaN RDKit descriptor"
+        )
 
         if drop_cols:
             final_df = self._drop_columns(df=final_df, min_unique=min_unique)
             self.logger.info(f"RDKit data frame created with shape: {final_df.shape}")
 
         return final_df
-    
-    def calcMordred(
-            self,
-            smiles_ls: list[str],
-            id_ls: list[str],
-            ignore_3D: bool=False,
-            drop_cols: bool=False,
-            min_unique: int=MIN_UNIQUE,
-    ) -> pd.DataFrame:
 
+    def calcMordred(
+        self,
+        smiles_ls: list[str],
+        id_ls: list[str],
+        ignore_3D: bool = False,
+        drop_cols: bool = False,
+        min_unique: int = MIN_UNIQUE,
+    ) -> pd.DataFrame:
         """
         Description
         -----------
@@ -172,99 +170,97 @@ class FeatureGenerator():
         id_ls               list[str]   List of IDs corresponding to each SMILE
         ignore_3d           bool        Flag to ignore 3D mordred descriptors
         drop_cols           bool        Flag to drop columns with low variance
-        min_unique          int         Variance threshold for dopping columns       
+        min_unique          int         Variance threshold for dopping columns
         """
-    
+
         self.logger.info(f"Creating Mordred descriptors for {len(smiles_ls)} smiles.")
 
         (parsed_ids, parsed_smiles, parsed_mols), _ = self._check_and_parse_smiles(
-            smiles_ls=smiles_ls,
-            id_ls=id_ls
+            smiles_ls=smiles_ls, id_ls=id_ls
         )
 
         df = self._setup_molecule_df(
             id_ls=parsed_ids, smiles_ls=parsed_smiles, mol_ls=parsed_mols
-            )
+        )
 
         self.logger.info(f"Generating descriptors for {len(df)} valid molecules")
         calc = Calculator(descriptors, ignore_3D=ignore_3D)
         desc_df = calc.pandas(df["Mols"], nproc=1)
         desc_df = desc_df.add_suffix("_mordred")
         final_df = pd.concat([df.drop(columns=["Mols"]), desc_df], axis=1)
-        final_df.index.name="ID"
+        final_df.index.name = "ID"
 
         mordred_cols = [c for c in final_df.columns if c.endswith("_mordred")]
         before = len(final_df)
         final_df = final_df.dropna(axis=0, subset=mordred_cols).copy()
-        self.logger.info(f"Dropped {before - len(final_df)} molecules with any NaN Mordred descriptor")
+        self.logger.info(
+            f"Dropped {before - len(final_df)} molecules with any NaN Mordred descriptor"
+        )
 
         if drop_cols:
             final_df = self._drop_columns(df=final_df, min_unique=min_unique)
             self.logger.info(f"Mordred data frame created with shape: {final_df.shape}")
 
         return final_df
-    # endregion    
+
+    # endregion
 
     # region ====== Fingerprint Calculations
 
     def calcMorganFingerprints(
-            self,
-            smiles_ls: list[str],
-            id_ls: list[str],
-            radius:int=2,
-            fingerprint_size:int=1024
+        self,
+        smiles_ls: list[str],
+        id_ls: list[str],
+        radius: int = 2,
+        fingerprint_size: int = 1024,
     ):
-        
-        self.logger.info(f"Creating Morgan Fingerprints descriptors for {len(smiles_ls)} smiles.")
+
+        self.logger.info(
+            f"Creating Morgan Fingerprints descriptors for {len(smiles_ls)} smiles."
+        )
         (parsed_ids, parsed_smiles, parsed_mols), _ = self._check_and_parse_smiles(
-            smiles_ls=smiles_ls,
-            id_ls=id_ls
+            smiles_ls=smiles_ls, id_ls=id_ls
         )
 
         df = self._setup_molecule_df(
             id_ls=parsed_ids, smiles_ls=parsed_smiles, mol_ls=parsed_mols
-            )
+        )
 
-        self.logger.info(f"Generating Morgan Fingerprints for {len(df)} valid molecules")
+        self.logger.info(
+            f"Generating Morgan Fingerprints for {len(df)} valid molecules"
+        )
 
         fpgen = rdFingerprintGenerator.GetMorganGenerator(
-            radius=radius, 
+            radius=radius,
             fpSize=fingerprint_size,
             includeChirality=True,
-            useBondTypes=True
-            )
+            useBondTypes=True,
+        )
 
         fps = []
 
         for mol in df["Mols"]:
             fp = fpgen.GetFingerprintAsNumPy(mol)
             fps.append(fp)
-        
+
         fp_df = pd.DataFrame(
-            fps,
-            index=parsed_ids,
-            columns=[f"{i}_morgan" for i in range(len(fps[0]))]
+            fps, index=parsed_ids, columns=[f"{i}_morgan" for i in range(len(fps[0]))]
         )
         fp_df.index.name = "ID"
 
         return fp_df
-        
-    def calcMACCSKeys(
-      self,
-      smiles_ls: list[str],
-      id_ls: list[str]      
-    ):
-          
-        self.logger.info(f"Creating MACCS Keys fingerprints for {len(smiles_ls)} smiles.")
+
+    def calcMACCSKeys(self, smiles_ls: list[str], id_ls: list[str]):
+
+        self.logger.info(
+            f"Creating MACCS Keys fingerprints for {len(smiles_ls)} smiles."
+        )
         (parsed_ids, parsed_smiles, parsed_mols), _ = self._check_and_parse_smiles(
-            smiles_ls=smiles_ls,
-            id_ls=id_ls
+            smiles_ls=smiles_ls, id_ls=id_ls
         )
 
         df = self._setup_molecule_df(
-            id_ls=parsed_ids,
-            smiles_ls=parsed_smiles,
-            mol_ls=parsed_mols
+            id_ls=parsed_ids, smiles_ls=parsed_smiles, mol_ls=parsed_mols
         )
 
         self.logger.info(f"Generating MACCS Keys for {len(df)} valid molecules")
@@ -276,26 +272,24 @@ class FeatureGenerator():
             fps.append(list(fp))
 
         fp_df = pd.DataFrame(
-            fps,
-            index=parsed_ids,
-            columns=[f"{i}_maccs" for i in range(len(fps[0]))]
+            fps, index=parsed_ids, columns=[f"{i}_maccs" for i in range(len(fps[0]))]
         )
         fp_df.index.name = "ID"
 
         return fp_df
-    # endregion    
-    
+
+    # endregion
+
     # region ====== Frozen Embedding Calculations
     def calcChemBERTa(
-            self,
-            smiles_ls: list[str],
-            id_ls: list[str],
-            batch_size: int=64,
-            drop_cols: bool=False,
-            min_unique: int=MIN_UNIQUE,
-            pooling: str="mean"
+        self,
+        smiles_ls: list[str],
+        id_ls: list[str],
+        batch_size: int = 64,
+        drop_cols: bool = False,
+        min_unique: int = MIN_UNIQUE,
+        pooling: str = "mean",
     ) -> pd.DataFrame:
-        
         """
         Description
         -----------
@@ -307,7 +301,7 @@ class FeatureGenerator():
         id_ls               list[str]   List of IDs corresponding to each SMILE
         batch_size          int         Size of batch to process
         drop_cols           bool        Flag to drop columns with low variance
-        min_unique          int         Variance threshold for dopping columns       
+        min_unique          int         Variance threshold for dopping columns
         pooling             str         Pooling strategy: "cls" or "mean"
         """
 
@@ -315,8 +309,7 @@ class FeatureGenerator():
             raise ValueError("pooling must be either 'cls' or 'mean'.")
 
         (parsed_ids, parsed_smiles, _), _ = self._check_and_parse_smiles(
-            smiles_ls=smiles_ls,
-            id_ls=id_ls
+            smiles_ls=smiles_ls, id_ls=id_ls
         )
 
         return self._calc_named_transformer_embeddings(
@@ -330,15 +323,14 @@ class FeatureGenerator():
         )
 
     def calcMolFormer(
-            self,
-            smiles_ls: list[str],
-            id_ls: list[str],
-            batch_size: int=64,
-            drop_cols: bool=False,
-            min_unique: int=MIN_UNIQUE,
-            pooling: str ="mean"
-        ) -> pd.DataFrame:
-
+        self,
+        smiles_ls: list[str],
+        id_ls: list[str],
+        batch_size: int = 64,
+        drop_cols: bool = False,
+        min_unique: int = MIN_UNIQUE,
+        pooling: str = "mean",
+    ) -> pd.DataFrame:
         """
         Description
         -----------
@@ -358,8 +350,7 @@ class FeatureGenerator():
             raise ValueError("pooling must be either 'cls' or 'mean'.")
 
         (parsed_ids, parsed_smiles, _), _ = self._check_and_parse_smiles(
-            smiles_ls=smiles_ls,
-            id_ls=id_ls
+            smiles_ls=smiles_ls, id_ls=id_ls
         )
         return self._calc_named_transformer_embeddings(
             input_texts=parsed_smiles,
@@ -370,16 +361,16 @@ class FeatureGenerator():
             min_unique=min_unique,
             pooling=pooling,
         )
-    
+
     def calcSELFormer(
-            self,
-            smiles_ls: list[str],
-            id_ls: list[str],
-            batch_size: int=64,
-            drop_cols: bool=False,
-            min_unique: int=MIN_UNIQUE,
-            pooling: str ="mean"
-        ) -> pd.DataFrame:
+        self,
+        smiles_ls: list[str],
+        id_ls: list[str],
+        batch_size: int = 64,
+        drop_cols: bool = False,
+        min_unique: int = MIN_UNIQUE,
+        pooling: str = "mean",
+    ) -> pd.DataFrame:
         """
         Description
         -----------
@@ -391,17 +382,17 @@ class FeatureGenerator():
         id_ls               list[str]   List of IDs corresponding to each SMILE
         batch_size          int         Size of batch to process
         drop_cols           bool        Flag to drop columns with low variance
-        min_unique          int         Variance threshold for dopping columns       
+        min_unique          int         Variance threshold for dopping columns
         pooling             str         Pooling strategy: "cls" or "mean"
         """
 
         valid_ids, valid_selfies, _ = self._smiles2selfies(
             smiles_ls=smiles_ls, id_ls=id_ls
-            )
-        
+        )
+
         if pooling not in {"cls", "mean"}:
             raise ValueError("pooling must be either 'cls' or 'mean'.")
-        
+
         if len(valid_selfies) != len(valid_ids):
             self.logger.error(
                 f"Length of SMILES and IDs not the same."
@@ -418,23 +409,24 @@ class FeatureGenerator():
             min_unique=min_unique,
             pooling=pooling,
         )
+
     # endregion
 
     # region ====== Fine-Tuning Transformers to task
     def fineTuneTransformer(
-            self,
-            smiles_ls: list[str],
-            ids: list[str],
-            targets: list[float],
-            model_label: str,
-            batch_size: int,
-            max_token_len: int,
-            pooling: str,
-            output_dir: Path | str,
-            test_frac: float = 0.2,
-            early_stopping_patience: int = 0,
-            dropout_rate: float = 0.1,
-            training_kwargs: dict | None = None,
+        self,
+        smiles_ls: list[str],
+        ids: list[str],
+        targets: list[float],
+        model_label: str,
+        batch_size: int,
+        max_token_len: int,
+        pooling: str,
+        output_dir: Path | str,
+        test_frac: float = 0.2,
+        early_stopping_patience: int = 0,
+        dropout_rate: float = 0.1,
+        training_kwargs: dict | None = None,
     ):
         if training_kwargs is None:
             training_kwargs = {
@@ -452,12 +444,12 @@ class FeatureGenerator():
                 "max_grad_norm": 1.0,
                 "save_safetensors": False,
             }
-    
+
         if pooling not in {"cls", "mean"}:
             raise ValueError("pooling must be either 'cls' or 'mean'.")
-    
+
         input_texts = smiles_ls
-    
+
         if self.feature_set == "selformer":
             targets_by_id = dict(zip(ids, targets))
             ids, input_texts, _ = self._smiles2selfies(
@@ -465,26 +457,26 @@ class FeatureGenerator():
                 id_ls=ids,
             )
             targets = [targets_by_id[mol_id] for mol_id in ids]
-    
+
         if len(input_texts) != len(ids):
             self.logger.error(
                 f"Length of input texts and IDs not the same. "
                 f"(texts = {len(input_texts)}, IDs = {len(ids)})"
             )
             raise ValueError("len(input_texts) != len(ids)")
-    
+
         if len(input_texts) != len(targets):
             self.logger.error(
                 f"Length of input texts and targets not the same. "
                 f"(texts = {len(input_texts)}, targets = {len(targets)})"
             )
             raise ValueError("len(input_texts) != len(targets)")
-    
+
         self.logger.info(
             f"Creating {model_label} fine-tuned model for {len(input_texts)} entries."
         )
         self.logger.info(f"Pooling strategy: {pooling}")
-    
+
         (
             train_txt,
             val_txt,
@@ -498,29 +490,33 @@ class FeatureGenerator():
             ids,
             test_size=test_frac,
         )
-    
+
         scaler = StandardScaler()
-    
+
         train_targ = scaler.fit_transform(
             np.asarray(train_targ, dtype=np.float32).reshape(-1, 1)
         ).reshape(-1)
-    
+
         val_targ = scaler.transform(
             np.asarray(val_targ, dtype=np.float32).reshape(-1, 1)
         ).reshape(-1)
-    
-        train_data = Dataset.from_dict({
-            "ID": train_ids,
-            "text": train_txt,
-            "labels": train_targ.astype(np.float32),
-        })
-    
-        val_data = Dataset.from_dict({
-            "ID": val_ids,
-            "text": val_txt,
-            "labels": val_targ.astype(np.float32),
-        })
-    
+
+        train_data = Dataset.from_dict(
+            {
+                "ID": train_ids,
+                "text": train_txt,
+                "labels": train_targ.astype(np.float32),
+            }
+        )
+
+        val_data = Dataset.from_dict(
+            {
+                "ID": val_ids,
+                "text": val_txt,
+                "labels": val_targ.astype(np.float32),
+            }
+        )
+
         def __tokenise_batch(batch):
             return self.tokeniser(
                 batch["text"],
@@ -529,34 +525,34 @@ class FeatureGenerator():
                 max_length=max_token_len,
                 add_special_tokens=True,
             )
-    
+
         train_data = train_data.map(__tokenise_batch, batched=True)
         train_data = train_data.remove_columns(["ID", "text"])
         train_data.set_format("torch")
-    
+
         val_data = val_data.map(__tokenise_batch, batched=True)
         val_data = val_data.remove_columns(["ID", "text"])
         val_data.set_format("torch")
-    
+
         spec = TRANSFORMER_FEATURE_SPECS[self.feature_set]
-    
+
         model_name = spec["model"]
         revision = spec["commit_hash"]
         code_revision = spec.get("code_revision")
-    
+
         hf_kwargs = {
             "trust_remote_code": True,
             "revision": revision,
         }
-    
+
         if code_revision is not None:
             hf_kwargs["code_revision"] = code_revision
-    
+
         fine_tune_config = AutoConfig.from_pretrained(
             model_name,
             **hf_kwargs,
         )
-    
+
         for attr in (
             "hidden_dropout_prob",
             "attention_probs_dropout_prob",
@@ -564,53 +560,54 @@ class FeatureGenerator():
         ):
             if hasattr(fine_tune_config, attr):
                 setattr(fine_tune_config, attr, dropout_rate)
-    
+
         fine_tune_config.problem_type = "regression"
         fine_tune_config.num_labels = 1
-    
+
         self.fine_tuning_model = AutoModelForSequenceClassification.from_pretrained(
             model_name,
             config=fine_tune_config,
             **hf_kwargs,
         )
-        
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.fine_tuning_model.to(device)
-    
+
         training_kwargs = dict(training_kwargs)
         training_kwargs["output_dir"] = str(output_dir)
         training_kwargs["per_device_train_batch_size"] = batch_size
         training_kwargs["per_device_eval_batch_size"] = batch_size
-    
+
         # Required for MoLFormer: safetensors can fail on non-contiguous tensors.
         training_kwargs["save_safetensors"] = False
-        
+
         training_kwargs = self._normalise_training_kwargs_for_installed_transformers(
             training_kwargs
         )
-        
+
         training_args = TrainingArguments(**training_kwargs)
+
         def compute_metrics(eval_pred):
             pred_logits, true = eval_pred
-    
+
             if isinstance(pred_logits, tuple):
                 pred_logits = pred_logits[0]
-    
+
             pred = np.asarray(pred_logits).reshape(-1)
             true = np.asarray(true).reshape(-1)
-    
+
             errors = true - pred
             bias = np.mean(errors)
             sdep = np.sqrt(np.mean((errors - np.mean(errors)) ** 2))
             mse = mean_squared_error(true, pred)
             rmse = np.sqrt(mse)
             r2 = r2_score(true, pred)
-    
+
             try:
                 r_pearson, p_pearson = pearsonr(true, pred)
             except Exception:
                 r_pearson, p_pearson = np.nan, np.nan
-    
+
             return {
                 "bias": bias,
                 "sdep": sdep,
@@ -620,16 +617,16 @@ class FeatureGenerator():
                 "r_pearson": r_pearson,
                 "p_pearson": p_pearson,
             }
-    
+
         callbacks = []
-    
+
         if early_stopping_patience > 0:
             callbacks.append(
                 EarlyStoppingCallback(
                     early_stopping_patience=early_stopping_patience,
                 )
             )
-    
+
         trainer_kwargs = dict(
             model=self.fine_tuning_model,
             args=training_args,
@@ -638,34 +635,34 @@ class FeatureGenerator():
             compute_metrics=compute_metrics,
             callbacks=callbacks,
         )
-        
+
         trainer_signature = inspect.signature(Trainer.__init__)
         trainer_arg_names = set(trainer_signature.parameters)
-        
+
         if "processing_class" in trainer_arg_names:
             trainer_kwargs["processing_class"] = self.tokeniser
         elif "tokenizer" in trainer_arg_names:
             trainer_kwargs["tokenizer"] = self.tokeniser
-        
+
         trainer = Trainer(**trainer_kwargs)
-    
+
         self.logger.info("Starting regression fine-tuning.")
         train_result = trainer.train()
-    
+
         self._save_training_mse_curve(
             log_history=trainer.state.log_history,
             output_dir=output_dir,
         )
-    
+
         self.logger.info("Evaluating fine-tuned regression model.")
         eval_result = trainer.evaluate()
-    
+
         self.fine_tuning_model = trainer.model
         self.fine_tuning_model.eval()
-    
+
         self.encoder = self.fine_tuning_model.base_model
         self.encoder.eval()
-    
+
         return {
             "trainer": trainer,
             "model": self.fine_tuning_model,
@@ -676,11 +673,11 @@ class FeatureGenerator():
             "val_ids": val_ids,
             "scaler": scaler,
         }
-    
+
     def _save_training_mse_curve(
-            self,
-            log_history: list[dict],
-            output_dir: Path | str,
+        self,
+        log_history: list[dict],
+        output_dir: Path | str,
     ):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -724,21 +721,18 @@ class FeatureGenerator():
             fig.savefig(output_dir / "fine_tuning_mse_loss.png", dpi=300)
         plt.close(fig)
 
-
-
     # region ====== Batch Feature Calculations
     def calcBatchFeatures(
-            self,
-            smiles_ls: list[str],
-            id_ls: list[str],
-            batch_size: int=2000,
-            ignore_3D: bool=False,
-            fpath: str | Path = "./",
-            compression: str | None=None,
-            drop_cols: bool=False,
-            pooling: str="mean",
+        self,
+        smiles_ls: list[str],
+        id_ls: list[str],
+        batch_size: int = 2000,
+        ignore_3D: bool = False,
+        fpath: str | Path = "./",
+        compression: str | None = None,
+        drop_cols: bool = False,
+        pooling: str = "mean",
     ):
-        
         """
         Description
         -----------
@@ -756,7 +750,9 @@ class FeatureGenerator():
         pooling             str         Pooling strategy for transformer embeddings
         """
 
-        self.logger.info(f"Calculating {self.feature_set} descriptors in batches of {batch_size}.")
+        self.logger.info(
+            f"Calculating {self.feature_set} descriptors in batches of {batch_size}."
+        )
 
         if isinstance(fpath, str):
             fpath = Path(fpath)
@@ -771,17 +767,13 @@ class FeatureGenerator():
             current_batch_no = i // batch_size + 1
 
             self.logger.info(f"Processing batch {current_batch_no}/{total_batches}")
-            
-            smi_batch = [
-                smi for smi in smiles_ls[i : i + batch_size]
-            ]
 
-            id_batch = [
-                id for id in id_ls[i : i + batch_size]
-            ]
+            smi_batch = [smi for smi in smiles_ls[i : i + batch_size]]
+
+            id_batch = [id for id in id_ls[i : i + batch_size]]
 
             df = self._calculate_features(smi_batch, id_batch, ignore_3D, pooling)
-            
+
             if single_output_path:
                 base_path = Path(fpath).with_suffix(".csv")
                 if drop_cols:
@@ -791,7 +783,7 @@ class FeatureGenerator():
                 else:
                     save_path = base_path
             else:
-                fpath_str = str(fpath).replace('*', str(current_batch_no))
+                fpath_str = str(fpath).replace("*", str(current_batch_no))
                 base_path = Path(fpath_str)
                 save_path = (
                     base_path.with_suffix(".csv")
@@ -813,16 +805,20 @@ class FeatureGenerator():
             else:
                 df.to_csv(save_path, index_label="ID", compression=compression)
             self.logger.info(f"Saved batch {current_batch_no} to:\n{save_path}\n\n")
-            
+
             saved_path_ls.append(save_path)
-        
+
         if drop_cols:
             self.logger.info(f"Determining columns to drop across all batches.")
             cols_to_drop = self._determine_columns_to_drop(saved_path_ls)
-            self.logger.info(f"Dropping {len(cols_to_drop)} columns from all batches:\n{cols_to_drop}")
+            self.logger.info(
+                f"Dropping {len(cols_to_drop)} columns from all batches:\n{cols_to_drop}"
+            )
 
             final_saved_paths = []
-            final_single_path = Path(fpath).with_suffix(".csv") if single_output_path else None
+            final_single_path = (
+                Path(fpath).with_suffix(".csv") if single_output_path else None
+            )
 
             for i, temp_path in enumerate(saved_path_ls, 1):
                 df = pd.read_csv(temp_path, index_col="ID")
@@ -840,13 +836,17 @@ class FeatureGenerator():
                         header=write_header,
                     )
                 else:
-                    final_path = temp_path.parent / temp_path.name.replace("_tmp.csv", ".csv")
+                    final_path = temp_path.parent / temp_path.name.replace(
+                        "_tmp.csv", ".csv"
+                    )
                     df.to_csv(final_path, index_label="ID", compression=compression)
                 final_saved_paths.append(final_path)
 
                 temp_path.unlink()
-                self.logger.info(f"Saved final batch {i} with shape {df.shape} to:\n{final_path}")
-            
+                self.logger.info(
+                    f"Saved final batch {i} with shape {df.shape} to:\n{final_path}"
+                )
+
             saved_path_ls = final_saved_paths
 
         self.logger.info(
@@ -856,19 +856,20 @@ class FeatureGenerator():
         )
 
         return df
+
     # endregion
 
     # region====== Trimming Rows that are outliers
     def trimRowsByPercentile(
-            self,
-            input_df: str | Path | pd.DataFrame,
-            columns: list[str] | None = None,
-            percentile: float = 0.99,
-            tail: str = "both",
-            index_col: str | None = "ID",
-            exclude_columns: list[str] | None = None,
-            return_removed_rows: bool = False,
-        ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
+        self,
+        input_df: str | Path | pd.DataFrame,
+        columns: list[str] | None = None,
+        percentile: float = 0.99,
+        tail: str = "both",
+        index_col: str | None = "ID",
+        exclude_columns: list[str] | None = None,
+        return_removed_rows: bool = False,
+    ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
         """
         Remove rows whose values fall outside a percentile cutoff.
 
@@ -922,7 +923,9 @@ class FeatureGenerator():
         else:
             missing = [col for col in columns if col not in df.columns]
             if missing:
-                raise ValueError(f"These columns are missing from the input data: {missing}")
+                raise ValueError(
+                    f"These columns are missing from the input data: {missing}"
+                )
 
         if not columns:
             raise ValueError("No columns available for percentile trimming.")
@@ -933,7 +936,9 @@ class FeatureGenerator():
             s = df[col]
 
             if not pd.api.types.is_numeric_dtype(s):
-                raise TypeError(f"Column '{col}' must be numeric for percentile trimming.")
+                raise TypeError(
+                    f"Column '{col}' must be numeric for percentile trimming."
+                )
 
             lower_cutoff = s.quantile(1 - percentile)
             upper_cutoff = s.quantile(percentile)
@@ -952,110 +957,117 @@ class FeatureGenerator():
             return trimmed_df, removed_df
 
         return trimmed_df
+
     # endregion
 
     # region ====== Hidden Functions
 
     def _calc_transformer_embeddings(
-                self,
-                input_texts: list[str],
-                ids: list[str],
-                model_label: str,
-                suffix_label: str,
-                batch_size: int,
-                max_token_len: int,
-                drop_cols: bool,
-                min_unique: int,
-                pooling: str,
-                metadata_col_name: str,
-        ) -> pd.DataFrame:
-            """Shared embedding routine for transformer-style text encoders."""
+        self,
+        input_texts: list[str],
+        ids: list[str],
+        model_label: str,
+        suffix_label: str,
+        batch_size: int,
+        max_token_len: int,
+        drop_cols: bool,
+        min_unique: int,
+        pooling: str,
+        metadata_col_name: str,
+    ) -> pd.DataFrame:
+        """Shared embedding routine for transformer-style text encoders."""
 
-            if pooling not in {"cls", "mean"}:
-                raise ValueError("pooling must be either 'cls' or 'mean'.")
+        if pooling not in {"cls", "mean"}:
+            raise ValueError("pooling must be either 'cls' or 'mean'.")
 
-            if len(input_texts) != len(ids):
-                self.logger.error(
-                    f"Length of input texts and IDs not the same."
-                    f"(texts = {len(input_texts)}, IDs = {len(ids)})"
-                )
-                raise ValueError("len(input_texts) != len(ids)")
+        if len(input_texts) != len(ids):
+            self.logger.error(
+                f"Length of input texts and IDs not the same."
+                f"(texts = {len(input_texts)}, IDs = {len(ids)})"
+            )
+            raise ValueError("len(input_texts) != len(ids)")
 
-            self.logger.info(f"Creating {model_label} embeddings for {len(input_texts)} entries.")
-            self.logger.debug(f"Tokeniser:\n{self.tokeniser}\nEncoder:\n{self.encoder}")
-            self.logger.info(f"Pooling strategy: {pooling}")
+        self.logger.info(
+            f"Creating {model_label} embeddings for {len(input_texts)} entries."
+        )
+        self.logger.debug(f"Tokeniser:\n{self.tokeniser}\nEncoder:\n{self.encoder}")
+        self.logger.info(f"Pooling strategy: {pooling}")
 
-            embeddings = []
-            device = next(self.encoder.parameters()).device
+        embeddings = []
+        device = next(self.encoder.parameters()).device
 
-            n_texts = len(input_texts)
-            total_batches = (n_texts + batch_size - 1) // batch_size
-            self.logger.info(f"Generating embeddings in {total_batches} batches")
+        n_texts = len(input_texts)
+        total_batches = (n_texts + batch_size - 1) // batch_size
+        self.logger.info(f"Generating embeddings in {total_batches} batches")
 
-            for i in range(0, n_texts, batch_size):
-                batch = [text for text in input_texts[i: i + batch_size]]
-                current_batch_no = i // batch_size + 1
+        for i in range(0, n_texts, batch_size):
+            batch = [text for text in input_texts[i : i + batch_size]]
+            current_batch_no = i // batch_size + 1
 
-                self.logger.debug(f"Inputs for batch {current_batch_no}:\n{batch}")
+            self.logger.debug(f"Inputs for batch {current_batch_no}:\n{batch}")
 
-                enc = self.tokeniser(
-                    batch,
-                    padding=True,
-                    truncation=True,
-                    max_length=max_token_len,
-                    return_tensors="pt",
-                    add_special_tokens=True
-                )
-
-                enc = {k: v.to(device) for k, v in enc.items()}
-
-                with torch.no_grad():
-                    output = self.encoder(**enc)
-
-                    if hasattr(output, "last_hidden_state"):
-                        hidden = output.last_hidden_state
-
-                        if pooling == "cls":
-                            pooled = hidden[:, 0, :]
-                        elif pooling == "mean":
-                            mask = enc["attention_mask"].unsqueeze(-1).float()
-                            pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
-                        else:
-                            raise RuntimeError(f"Unexpected pooling strategy: {pooling}")
-
-                    elif isinstance(output, torch.Tensor):
-                        pooled = output
-
-                    elif hasattr(output, "pooler_output"):
-                        pooled = output.pooler_output
-
-                    else:
-                        raise RuntimeError("Unknown output structure from encoder")
-
-                embeddings.append(pooled.cpu().numpy().astype(np.float32))
-                self.logger.info(f"Processed batch {current_batch_no} of {total_batches}")
-
-            try:
-                emb_array = np.vstack(embeddings)
-            except ValueError as e:
-                self.logger.error(f"Could not stack the embedding arrays:\n{e}")
-                return pd.DataFrame()
-
-            final_df = pd.DataFrame(
-                emb_array,
-                index=ids,
-                columns=[f"emb_{i}" for i in range(1, emb_array.shape[1] + 1)]
+            enc = self.tokeniser(
+                batch,
+                padding=True,
+                truncation=True,
+                max_length=max_token_len,
+                return_tensors="pt",
+                add_special_tokens=True,
             )
 
-            final_df[metadata_col_name] = input_texts
-            final_df = final_df.add_suffix(f"_{suffix_label}_{pooling}")
-            final_df.index.name, final_df.index = "ID", ids
+            enc = {k: v.to(device) for k, v in enc.items()}
 
-            if drop_cols:
-                final_df = self._drop_columns(df=final_df, min_unique=min_unique)
-                self.logger.info(f"Embedding data frame created with shape: {final_df.shape}")
+            with torch.no_grad():
+                output = self.encoder(**enc)
 
-            return final_df
+                if hasattr(output, "last_hidden_state"):
+                    hidden = output.last_hidden_state
+
+                    if pooling == "cls":
+                        pooled = hidden[:, 0, :]
+                    elif pooling == "mean":
+                        mask = enc["attention_mask"].unsqueeze(-1).float()
+                        pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(
+                            min=1
+                        )
+                    else:
+                        raise RuntimeError(f"Unexpected pooling strategy: {pooling}")
+
+                elif isinstance(output, torch.Tensor):
+                    pooled = output
+
+                elif hasattr(output, "pooler_output"):
+                    pooled = output.pooler_output
+
+                else:
+                    raise RuntimeError("Unknown output structure from encoder")
+
+            embeddings.append(pooled.cpu().numpy().astype(np.float32))
+            self.logger.info(f"Processed batch {current_batch_no} of {total_batches}")
+
+        try:
+            emb_array = np.vstack(embeddings)
+        except ValueError as e:
+            self.logger.error(f"Could not stack the embedding arrays:\n{e}")
+            return pd.DataFrame()
+
+        final_df = pd.DataFrame(
+            emb_array,
+            index=ids,
+            columns=[f"emb_{i}" for i in range(1, emb_array.shape[1] + 1)],
+        )
+
+        final_df[metadata_col_name] = input_texts
+        final_df = final_df.add_suffix(f"_{suffix_label}_{pooling}")
+        final_df.index.name, final_df.index = "ID", ids
+
+        if drop_cols:
+            final_df = self._drop_columns(df=final_df, min_unique=min_unique)
+            self.logger.info(
+                f"Embedding data frame created with shape: {final_df.shape}"
+            )
+
+        return final_df
 
     def _calc_named_transformer_embeddings(
         self,
@@ -1071,7 +1083,9 @@ class FeatureGenerator():
 
         spec = TRANSFORMER_FEATURE_SPECS.get(self.feature_set)
         if spec is None:
-            raise ValueError(f"No transformer config found for feature set '{self.feature_set}'")
+            raise ValueError(
+                f"No transformer config found for feature set '{self.feature_set}'"
+            )
 
         return self._calc_transformer_embeddings(
             input_texts=input_texts,
@@ -1085,7 +1099,7 @@ class FeatureGenerator():
             pooling=pooling,
             metadata_col_name=spec["metadata_col_name"],
         )
-    
+
     def _mol2mol3d(
         self,
         mol: Chem.Mol,
@@ -1114,7 +1128,11 @@ class FeatureGenerator():
 
         # Generate multiple conformers, then pick lowest energy after optimization
         try:
-            cids = list(AllChem.EmbedMultipleConfs(mol3d, numConfs=int(num_confs), params=params))
+            cids = list(
+                AllChem.EmbedMultipleConfs(
+                    mol3d, numConfs=int(num_confs), params=params
+                )
+            )
         except Exception:
             return None
 
@@ -1131,7 +1149,9 @@ class FeatureGenerator():
                     energies[cid] = float(energy)
         except Exception:
             try:
-                results = AllChem.UFFOptimizeMoleculeConfs(mol3d, maxIters=int(max_iters))
+                results = AllChem.UFFOptimizeMoleculeConfs(
+                    mol3d, maxIters=int(max_iters)
+                )
                 for cid, (status, energy) in zip(cids, results):
                     if status == 0:
                         energies[cid] = float(energy)
@@ -1153,19 +1173,15 @@ class FeatureGenerator():
 
         return new_mol
 
-    def _parse_smiles(
-        self,
-        smiles_ls: list[str],
-        id_ls: list[str]
-    ):
+    def _parse_smiles(self, smiles_ls: list[str], id_ls: list[str]):
         """
         Returns:
         (
-        [parsed_ids, parsed_smiles, parsed_mols3d], 
-        [failed_parse_ids, failed_parse_smiles], 
+        [parsed_ids, parsed_smiles, parsed_mols3d],
+        [failed_parse_ids, failed_parse_smiles],
         [failed3d_ids, failed3d_smiles]
         )
-        
+
         where parsed_mols3d are RDKit Mol objects containing exactly one (chosen) 3D conformer.
         """
         self.logger.debug("Parsing SMILES...")
@@ -1196,20 +1212,23 @@ class FeatureGenerator():
 
         if not parsed_mols:
             self.logger.warning("No valid 3D molecules generated.")
-            return pd.DataFrame(), [failed_ids, failed_smiles], [failed3d_ids, failed3d_smiles]
+            return (
+                pd.DataFrame(),
+                [failed_ids, failed_smiles],
+                [failed3d_ids, failed3d_smiles],
+            )
 
         if failed_smiles:
             self.logger.debug(f"{len(failed_ids)} failed parse:\n{failed_smiles}")
 
         if failed3d_smiles:
-            self.logger.debug(f"{len(failed3d_ids)} failed 3D embed:\n{failed3d_smiles}")
+            self.logger.debug(
+                f"{len(failed3d_ids)} failed 3D embed:\n{failed3d_smiles}"
+            )
 
         self.logger.debug(f"{len(parsed_smiles)} molecules parsed + 3D-embedded.")
 
-        return (
-            [parsed_ids, parsed_smiles, parsed_mols],
-            [failed_ids, failed_smiles]
-            )
+        return ([parsed_ids, parsed_smiles, parsed_mols], [failed_ids, failed_smiles])
 
     def _check_and_parse_smiles(
         self,
@@ -1228,10 +1247,10 @@ class FeatureGenerator():
         return self._parse_smiles(smiles_ls=smiles_ls, id_ls=id_ls)
 
     def _setup_molecule_df(
-            self,
-            id_ls: list[str],
-            smiles_ls: list[str],
-            mol_ls: list[Chem.rdchem.Mol],
+        self,
+        id_ls: list[str],
+        smiles_ls: list[str],
+        mol_ls: list[Chem.rdchem.Mol],
     ):
         """
         Making a dataframe with smiles, mol objects and IDs
@@ -1241,10 +1260,12 @@ class FeatureGenerator():
         df.index.name, df.index = "ID", id_ls
         df["SMILES"] = smiles_ls
         df["Mols"] = mol_ls
-        
+
         return df
-    
-    def _hf_remote_kwargs(self, revision: str, code_revision: str | None = None) -> dict:
+
+    def _hf_remote_kwargs(
+        self, revision: str, code_revision: str | None = None
+    ) -> dict:
         kwargs = {
             "trust_remote_code": True,
             "revision": revision,
@@ -1252,67 +1273,75 @@ class FeatureGenerator():
         if code_revision is not None:
             kwargs["code_revision"] = code_revision
         return kwargs
-    
+
     def _normalise_training_kwargs_for_installed_transformers(
         self,
         training_kwargs: dict,
     ) -> dict:
         """
         Make TrainingArguments kwargs compatible with the installed Transformers version.
-    
+
         transformers 4.35.x expects `evaluation_strategy`.
         newer transformers versions expect `eval_strategy`.
         """
-    
+
         training_kwargs = dict(training_kwargs)
-    
+
         training_args_signature = inspect.signature(TrainingArguments.__init__)
         training_arg_names = set(training_args_signature.parameters)
-    
-        if "eval_strategy" in training_kwargs and "eval_strategy" not in training_arg_names:
+
+        if (
+            "eval_strategy" in training_kwargs
+            and "eval_strategy" not in training_arg_names
+        ):
             if "evaluation_strategy" in training_arg_names:
-                training_kwargs["evaluation_strategy"] = training_kwargs.pop("eval_strategy")
+                training_kwargs["evaluation_strategy"] = training_kwargs.pop(
+                    "eval_strategy"
+                )
             else:
                 training_kwargs.pop("eval_strategy")
-    
-        if "evaluation_strategy" in training_kwargs and "evaluation_strategy" not in training_arg_names:
+
+        if (
+            "evaluation_strategy" in training_kwargs
+            and "evaluation_strategy" not in training_arg_names
+        ):
             if "eval_strategy" in training_arg_names:
-                training_kwargs["eval_strategy"] = training_kwargs.pop("evaluation_strategy")
+                training_kwargs["eval_strategy"] = training_kwargs.pop(
+                    "evaluation_strategy"
+                )
             else:
                 training_kwargs.pop("evaluation_strategy")
-    
+
         unsupported_args = [
-            key for key in training_kwargs
-            if key not in training_arg_names
+            key for key in training_kwargs if key not in training_arg_names
         ]
-    
+
         for key in unsupported_args:
             self.logger.warning(
                 f"Dropping unsupported TrainingArguments kwarg for this Transformers version: {key}"
             )
             training_kwargs.pop(key)
-    
+
         return training_kwargs
-    
-    
+
     def _initialise_embedding_models(
-            self,
-            tokeniser: str,
-            model: str,
-            revision: str,
-            code_revision: str | None = None,
+        self,
+        tokeniser: str,
+        model: str,
+        revision: str,
+        code_revision: str | None = None,
     ):
         """
         Initialising the embedding models.
         """
-    
+
         if not tokeniser or not model:
             self.logger.error(
                 "No valid tokeniser or model provided: "
                 f"Tokeniser = {tokeniser}, Model = {model}"
             )
             return
-    
+
         self.logger.info(
             "Initialising tokeniser and model. "
             f"Tokeniser = {tokeniser}. "
@@ -1320,26 +1349,30 @@ class FeatureGenerator():
             f"Revision = {revision}. "
             f"Code revision = {code_revision}."
         )
-    
+
         hf_kwargs = {
             "trust_remote_code": True,
             "revision": revision,
         }
-    
+
         if code_revision is not None:
             hf_kwargs["code_revision"] = code_revision
-    
+
         try:
             self.tokeniser = AutoTokenizer.from_pretrained(
                 tokeniser,
                 **hf_kwargs,
             )
-    
-            self.encoder = AutoModel.from_pretrained(
-                model,
-                **hf_kwargs,
-            ).eval().to("cpu")
-    
+
+            self.encoder = (
+                AutoModel.from_pretrained(
+                    model,
+                    **hf_kwargs,
+                )
+                .eval()
+                .to("cpu")
+            )
+
         except Exception as exc:
             raise RuntimeError(
                 f"Failed to initialise tokenizer/model for '{model}'. "
@@ -1348,15 +1381,15 @@ class FeatureGenerator():
             ) from exc
 
     def _drop_columns(
-            self,
-            df: pd.DataFrame,
-            min_unique: int=2,
-            protected_cols: list[str] = ["SMILES", "ID"]
+        self,
+        df: pd.DataFrame,
+        min_unique: int = 2,
+        protected_cols: list[str] = ["SMILES", "ID"],
     ):
         """
         Dropping columns based on low variability (subject to min_unique)
         """
-        
+
         low_var = df.nunique(dropna=True) < min_unique
         has_nan = df.isna().any(axis=0)
 
@@ -1366,50 +1399,52 @@ class FeatureGenerator():
         df = df.drop(columns=to_drop)
 
         return df
-    
+
     def _determine_columns_to_drop(
         self,
         file_paths: list[Path],
         min_unique: int = MIN_UNIQUE,
         protected_cols: list[str] = ["SMILES"],
-        force_float32: bool=True
+        force_float32: bool = True,
     ) -> list[str]:
         """Determine columns to drop using streaming approach"""
-        
+
         column_stats = {}
         f32_max = float(np.finfo(np.float32).max)
-        
+
         for path in file_paths:
             self.logger.info(f"Analyzing {path.name} for problematic columns...")
-            
+
             # Read in chunks to save memory
-            for chunk in pd.read_csv(path, index_col="ID", chunksize=500, low_memory=False):
+            for chunk in pd.read_csv(
+                path, index_col="ID", chunksize=500, low_memory=False
+            ):
                 for col in chunk.columns:
                     if col in protected_cols:
                         continue
-                        
+
                     if col not in column_stats:
                         column_stats[col] = {
-                            'unique_values': set(),
-                            'has_nan': False,
-                            'has_non_numeric': False,
-                            'has_inf': False,
-                            "removed_non_f32": 0
+                            "unique_values": set(),
+                            "has_nan": False,
+                            "has_non_numeric": False,
+                            "has_inf": False,
+                            "removed_non_f32": 0,
                         }
                     s = chunk[col]
                     # Check if column contains non-numeric values
                     if not pd.api.types.is_numeric_dtype(s):
                         # Try to convert to numeric
-                        numeric_col = pd.to_numeric(s, errors='coerce')
+                        numeric_col = pd.to_numeric(s, errors="coerce")
                         # If conversion created NaNs where there weren't any, it's non-numeric
                         if numeric_col.isna().sum() > s.isna().sum():
-                            column_stats[col]['has_non_numeric'] = True
+                            column_stats[col]["has_non_numeric"] = True
                         s = numeric_col
-                    
+
                     # Checking for 'infinite' values
                     if pd.api.types.is_numeric_dtype(s):
                         if np.isinf(s).any():
-                            column_stats[col]['has_inf'] = True
+                            column_stats[col]["has_inf"] = True
 
                     if force_float32 and pd.api.types.is_numeric_dtype(s):
                         mask_ok = np.isfinite(s) & (s.abs() <= f32_max)
@@ -1419,27 +1454,32 @@ class FeatureGenerator():
                         s = s.where(mask_ok, np.nan)
 
                     chunk[col] = s
-                    
+
                     # Track unique values (limit to min_unique to save memory)
-                    if len(column_stats[col]['unique_values']) < min_unique:
+                    if len(column_stats[col]["unique_values"]) < min_unique:
                         unique_vals = chunk[col].dropna().unique()
                         # Filter out inf values from unique tracking
                         unique_vals = unique_vals[np.isfinite(unique_vals)]
-                        column_stats[col]['unique_values'].update(unique_vals.tolist()[:min_unique])
-                    
+                        column_stats[col]["unique_values"].update(
+                            unique_vals.tolist()[:min_unique]
+                        )
+
                     # Track NaN presence
                     if chunk[col].isna().any():
-                        column_stats[col]['has_nan'] = True
-        
+                        column_stats[col]["has_nan"] = True
+
         # Determine columns to drop - UPDATE THIS
         cols_to_drop = [
-            col for col, stats in column_stats.items()
-            if (len(stats['unique_values']) < min_unique or 
-                stats['has_nan'] or 
-                stats['has_non_numeric'] or
-                stats['has_inf'])
+            col
+            for col, stats in column_stats.items()
+            if (
+                len(stats["unique_values"]) < min_unique
+                or stats["has_nan"]
+                or stats["has_non_numeric"]
+                or stats["has_inf"]
+            )
         ]
-            
+
         self.logger.info(
             "Columns to drop: %d total\n"
             "  - Low variance: %d\n"
@@ -1449,27 +1489,35 @@ class FeatureGenerator():
             "  - Removed non-float32-finite values in kept/dropped cols: %d cols"
             % (
                 len(cols_to_drop),
-                sum(1 for c in cols_to_drop if len(column_stats[c]['unique_values']) < min_unique),
-                sum(1 for c in cols_to_drop if column_stats[c]['has_nan']),
-                sum(1 for c in cols_to_drop if column_stats[c]['has_inf']),
-                sum(1 for c in cols_to_drop if column_stats[c]['has_non_numeric']),
-                sum(1 for c, st in column_stats.items() if st.get('removed_non_f32', 0) > 0),
+                sum(
+                    1
+                    for c in cols_to_drop
+                    if len(column_stats[c]["unique_values"]) < min_unique
+                ),
+                sum(1 for c in cols_to_drop if column_stats[c]["has_nan"]),
+                sum(1 for c in cols_to_drop if column_stats[c]["has_inf"]),
+                sum(1 for c in cols_to_drop if column_stats[c]["has_non_numeric"]),
+                sum(
+                    1
+                    for c, st in column_stats.items()
+                    if st.get("removed_non_f32", 0) > 0
+                ),
             )
         )
-        
+
         return cols_to_drop
-    
+
     def _calculate_features(
-            self,
-            smi_batch: list[str],
-            id_batch: list[str],
-            ignore_3D: bool,
-            pooling: str="mean",
+        self,
+        smi_batch: list[str],
+        id_batch: list[str],
+        ignore_3D: bool,
+        pooling: str = "mean",
     ):
         """
         Function to package the feature generation functions
         """
-        
+
         calculators = {
             "rdkit": lambda: self.calcRDKit(smiles_ls=smi_batch, id_ls=id_batch),
             "mordred": lambda: self.calcMordred(
@@ -1507,7 +1555,9 @@ class FeatureGenerator():
                 batch_size=64,
                 pooling=pooling,
             ),
-            "morgan": lambda: self.calcMorganFingerprints(smiles_ls=smi_batch, id_ls=id_batch),
+            "morgan": lambda: self.calcMorganFingerprints(
+                smiles_ls=smi_batch, id_ls=id_batch
+            ),
             "maccs": lambda: self.calcMACCSKeys(smiles_ls=smi_batch, id_ls=id_batch),
         }
 
@@ -1515,20 +1565,24 @@ class FeatureGenerator():
             return calculators[self.feature_set]()
         except KeyError as exc:
             raise ValueError(f"Feature set not allowed {self.feature_set}") from exc
-        
-    def _smiles2selfies(self, 
-                        smiles_ls:list[str]=None, 
-                        id_ls:list[str]=None, 
-                        smiles_df:pd.DataFrame=None, 
-                        smiles_col: str="SMILES",
-                        id_col:str="ID"):
+
+    def _smiles2selfies(
+        self,
+        smiles_ls: list[str] = None,
+        id_ls: list[str] = None,
+        smiles_df: pd.DataFrame = None,
+        smiles_col: str = "SMILES",
+        id_col: str = "ID",
+    ):
 
         if smiles_df is not None:
             smiles_df = smiles_df.copy().reset_index()
             smiles_ls = smiles_df[smiles_col].tolist()
             id_ls = smiles_df[id_col]
 
-        (parsed_ids, parsed_smiles, parsed_mols), _ =  self._parse_smiles(smiles_ls=smiles_ls, id_ls=id_ls)
+        (parsed_ids, parsed_smiles, parsed_mols), _ = self._parse_smiles(
+            smiles_ls=smiles_ls, id_ls=id_ls
+        )
 
         valid_selfies = []
         valid_ids = []
@@ -1542,12 +1596,9 @@ class FeatureGenerator():
                 valid_ids.append(mol_id)
             except Exception as e:
                 invalid_ids.append(mol_id)
-        
-        self.logger.warning(
-            f"SMILES unable to be converted to SELFIES:\n{invalid_ids}"
-            )
-            
+
+        self.logger.warning(f"SMILES unable to be converted to SELFIES:\n{invalid_ids}")
+
         return valid_ids, valid_selfies, invalid_ids
-    
-    
+
     # endregion

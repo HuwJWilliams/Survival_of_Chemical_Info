@@ -37,7 +37,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--set-names", nargs="+", required=False, help="Set names of the new raw data sets"
-) 
+)
 
 args = parser.parse_args()
 

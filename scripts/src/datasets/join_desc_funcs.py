@@ -1,6 +1,7 @@
 """
 Functions used for joining datasets
 """
+
 # region Imports
 import pandas as pd
 from glob import glob
@@ -9,6 +10,7 @@ from pathlib import Path
 import sys
 from rdkit import Chem
 from rdkit.Chem import Descriptors
+
 # endregion
 
 # region Pathing
@@ -24,12 +26,13 @@ from analyse_datasets import checkLipinskiCriteria
 paths = getPaths()
 # endregion
 
+
 # region Function Definitions
 def makeUniqueSMILES(
-        properties: list=["Boiling_Point", "LogD", "LD50", "pKa", "pIC50"],
-        target_dict: dict=paths["targets"],
-        override_full_csv: bool=True,
-        ):
+    properties: list = ["Boiling_Point", "LogD", "LD50", "pKa", "pIC50"],
+    target_dict: dict = paths["targets"],
+    override_full_csv: bool = True,
+):
     """
     Creates a Data Frame which contains only unique SMILES from across all specified properties
     """
@@ -41,14 +44,15 @@ def makeUniqueSMILES(
         if prop == "all":
             continue
         try:
-            df = pd.read_csv(path, 
-                            #usecols=["SMILES", "ID"], 
-                            index_col="ID"
-                            )
+            df = pd.read_csv(
+                path,
+                # usecols=["SMILES", "ID"],
+                index_col="ID",
+            )
         except FileNotFoundError as e:
             print("Property file not found. Skipping.\n{e}")
             continue
-        
+
         # Concatenate all target data frames and drop the duplicates
         full_smi_df = pd.concat([full_smi_df, df], axis=0)
 
@@ -59,7 +63,7 @@ def makeUniqueSMILES(
     full_smi_df = full_smi_df[cols_to_keep]
 
     out_path = target_dict["all"]
-        
+
     # Saving the full csv
     if override_full_csv or not out_path.exists():
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -67,6 +71,7 @@ def makeUniqueSMILES(
         print(f"Saved '{out_path}'")
     else:
         print(f"'{out_path}' already exists. Skipping.")
+
 
 def _find_bad_ids(df: pd.DataFrame, file: str, n=20):
     idx = df.index
@@ -82,29 +87,32 @@ def _find_bad_ids(df: pd.DataFrame, file: str, n=20):
     if bad_mask.any():
         bad_vals = idx_s[bad_mask].unique()
         print(f"\n[BAD IDS] file={file}")
-        print(f"  bad_rows={bad_mask.sum()} unique_bad={len(bad_vals)} sample={bad_vals[:n]}")
+        print(
+            f"  bad_rows={bad_mask.sum()} unique_bad={len(bad_vals)} sample={bad_vals[:n]}"
+        )
         print("  index dtype:", idx.dtype)
         # show which rows they correspond to
         print(df.iloc[list(pd.Series(bad_mask).to_numpy().nonzero()[0])].head(3))
 
+
 def combineAllFeats(
     full_smi_df: pd.DataFrame | str | Path = paths["targets"]["all"],
     feat_set_ls: list = [
-        "rdkit", 
-        "mordred", 
-        "chemberta", 
+        "rdkit",
+        "mordred",
+        "chemberta",
         "molformer",
         "chembertasey",
         "molformer-c3-1b",
         "maccs",
         "selformer",
-        "morgan"
-        ],
+        "morgan",
+    ],
     feature_paths: dict = paths["full_features"],
     cols_to_drop: list[str] | None = None,
     properties: list = None,
-    save: bool=True,
-    save_path: str | Path=paths["full_features"]["all"],
+    save: bool = True,
+    save_path: str | Path = paths["full_features"]["all"],
     align_common_ids: bool = False,
     max_mw: float | None = None,
     max_atoms: int | None = None,
@@ -116,7 +124,7 @@ def combineAllFeats(
     lipinski_n_hba: int = 11,
 ):
     built_feature_dfs = {}
-    
+
     if properties is None:
         properties = list(feature_paths.keys())[:-1]
 
@@ -159,7 +167,13 @@ def combineAllFeats(
         print(
             "Keeping %d IDs after Lipinski filter "
             "(mw<%s, logp<%s, n_hbd<%s, n_hba<%s)"
-            % (len(keep_ids), lipinski_mw, lipinski_logp, lipinski_n_hbd, lipinski_n_hba)
+            % (
+                len(keep_ids),
+                lipinski_mw,
+                lipinski_logp,
+                lipinski_n_hbd,
+                lipinski_n_hba,
+            )
         )
 
     for desc_emb in feat_set_ls:
@@ -179,22 +193,23 @@ def combineAllFeats(
                 df = pd.read_csv(file, index_col="ID", low_memory=False)
 
                 if cols_to_drop:
-                    df = df.drop(columns=[col for col in cols_to_drop if col in df.columns])
+                    df = df.drop(
+                        columns=[col for col in cols_to_drop if col in df.columns]
+                    )
 
                 # diagnose raw IDs
-                _find_bad_ids(df, file)  
+                _find_bad_ids(df, file)
                 temp_df = pd.concat([temp_df, df], axis=0)
 
             # safe sort
             temp_df = temp_df.sort_index(
                 key=lambda x: pd.to_numeric(
-                    x.astype(str).str.extract(r"(\d+)")[0],
-                    errors="coerce"
+                    x.astype(str).str.extract(r"(\d+)")[0], errors="coerce"
                 ).fillna(10**18)
             )
 
             full_feat_df = pd.concat([full_feat_df, temp_df], axis=0)
-        
+
         print(f"Length of DF: {len(full_feat_df)}")
         print("Rows with any NaN:", full_feat_df.isna().any(axis=1).sum())
 
@@ -232,15 +247,18 @@ def combineAllFeats(
             out_path.parent.mkdir(parents=True, exist_ok=True)
             full_feat_df.to_csv(out_path, index_label="ID")
 
+
 def getCommonIDs(
-        df_path_ls: list[pd.DataFrame | str | Path] = paths['full_features']['all'].values(),
-        output_path_ls: list[Path] | None = None,
-        save: bool = True,
-        ):
-    
+    df_path_ls: list[pd.DataFrame | str | Path] = paths["full_features"][
+        "all"
+    ].values(),
+    output_path_ls: list[Path] | None = None,
+    save: bool = True,
+):
+
     common_ids = None
     loaded_dfs = []
-    
+
     for df_path in df_path_ls:
         print(f"Processing {df_path}")
         if isinstance(df_path, pd.DataFrame):
@@ -259,20 +277,22 @@ def getCommonIDs(
         if common_ids is None:
             common_ids = id_set
 
-        else: 
+        else:
             common_ids &= id_set
-        
+
         print(f"Current intersection size: {len(common_ids)}")
 
         if not common_ids:
             break
 
     common_ids = sorted(common_ids) if common_ids is not None else []
-    aligned_dfs = [df.loc[df.index.intersection(common_ids)].copy() for df in loaded_dfs]
+    aligned_dfs = [
+        df.loc[df.index.intersection(common_ids)].copy() for df in loaded_dfs
+    ]
 
     if save:
         if output_path_ls is None:
-            output_path_ls = paths['full_features']['all'].values()
+            output_path_ls = paths["full_features"]["all"].values()
 
         for df_path, df, output_path in zip(df_path_ls, aligned_dfs, output_path_ls):
             print(f"Generating common IDs between all features:")
@@ -281,9 +301,10 @@ def getCommonIDs(
 
     return aligned_dfs, common_ids
 
+
 def _load_all_targets_df(
-        full_smi_df: pd.DataFrame | str | Path = paths["targets"]["all"],
-    ) -> pd.DataFrame:
+    full_smi_df: pd.DataFrame | str | Path = paths["targets"]["all"],
+) -> pd.DataFrame:
 
     if isinstance(full_smi_df, pd.DataFrame):
         df = full_smi_df.copy()
@@ -295,35 +316,43 @@ def _load_all_targets_df(
 
     return df
 
+
 def _get_ids_below_atom_threshold(
-        full_smi_df: pd.DataFrame | str | Path = paths["targets"]["all"],
-        max_atoms: int = 100,
-        smiles_col: str = "SMILES",
-    ) -> list[str]:
+    full_smi_df: pd.DataFrame | str | Path = paths["targets"]["all"],
+    max_atoms: int = 100,
+    smiles_col: str = "SMILES",
+) -> list[str]:
 
     if max_atoms == 0:
         return full_smi_df.index.tolist()
 
     df = _load_all_targets_df(full_smi_df=full_smi_df)
     mols = df[smiles_col].apply(Chem.MolFromSmiles)
-    atom_counts = mols.apply(lambda mol: mol.GetNumAtoms() if mol is not None else np.nan)
+    atom_counts = mols.apply(
+        lambda mol: mol.GetNumAtoms() if mol is not None else np.nan
+    )
 
     keep_ids = df.index[atom_counts < max_atoms]
     return keep_ids.astype(str).tolist()
 
+
 def _get_ids_below_mw_threshold(
-        full_smi_df: pd.DataFrame | str | Path = paths["targets"]["all"],
-        max_mw: float = 500.0,
-        smiles_col: str = "SMILES",
-    ) -> list[str]:
+    full_smi_df: pd.DataFrame | str | Path = paths["targets"]["all"],
+    max_mw: float = 500.0,
+    smiles_col: str = "SMILES",
+) -> list[str]:
 
     if max_mw == 0:
         return full_smi_df.index.tolist()
 
     df = _load_all_targets_df(full_smi_df=full_smi_df)
     mols = df[smiles_col].apply(Chem.MolFromSmiles)
-    mol_wts = mols.apply(lambda mol: Descriptors.MolWt(mol) if mol is not None else np.nan)
+    mol_wts = mols.apply(
+        lambda mol: Descriptors.MolWt(mol) if mol is not None else np.nan
+    )
 
     keep_ids = df.index[mol_wts < max_mw]
     return keep_ids.astype(str).tolist()
+
+
 # endregion

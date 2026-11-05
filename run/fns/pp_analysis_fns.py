@@ -33,19 +33,27 @@ v = Visualise(save_all=False)
 
 
 # %% ===== Function Definitions =====
-def selectPPAnalysisInputs(preds_dir, target_paths, target_columns, properties, feature_sets=None):
+def selectPPAnalysisInputs(
+    preds_dir, target_paths, target_columns, properties, feature_sets=None
+):
     """Use configured feature names and exclude properties without target metadata."""
     valid_properties = []
     for prop in properties:
         if prop not in target_columns or prop not in target_paths:
-            print(f"Skipping {prop}: missing target column or target path configuration")
+            print(
+                f"Skipping {prop}: missing target column or target path configuration"
+            )
             continue
         valid_properties.append(prop)
     if feature_sets is None:
-        feature_sets = list(dict.fromkeys(
-            feature for prop in valid_properties for feature in preds_dir[prop]
-        ))
-    return valid_properties, [feature for feature in feature_sets if "-random-" not in feature]
+        feature_sets = list(
+            dict.fromkeys(
+                feature for prop in valid_properties for feature in preds_dir[prop]
+            )
+        )
+    return valid_properties, [
+        feature for feature in feature_sets if "-random-" not in feature
+    ]
 
 
 def getPropertyPerformanceDfs(
@@ -143,8 +151,10 @@ def getFeatureColourConfig(
             stripped_feature_name = feature
 
         colour_aliases = {
-            "chemberta-dc": "chemberta", "chemberta-sey": "chembertasey",
-            "molformer-ibm": "molformer", "molformer-dc": "molformer-c3-1b",
+            "chemberta-dc": "chemberta",
+            "chemberta-sey": "chembertasey",
+            "molformer-ibm": "molformer",
+            "molformer-dc": "molformer-c3-1b",
         }
         colour = colour_map.get(
             stripped_feature_name,
@@ -232,7 +242,12 @@ def getFeatureStyleFromConfig(
 
 
 def getMatchedFTPerformanceDf(
-    prop, feature_sets, full_pathing, preds_dir, target_columns, save_path,
+    prop,
+    feature_sets,
+    full_pathing,
+    preds_dir,
+    target_columns,
+    save_path,
 ) -> pd.DataFrame:
     """Score each FT/base pair on identical finite external observations.
 
@@ -258,7 +273,9 @@ def getMatchedFTPerformanceDf(
             directory = preds_dir.get(prop, {}).get(feature)
             path = Path(directory) / "last_20pct_pred.csv.gz" if directory else None
             if path is None or not path.exists():
-                print(f"Skipping matched comparison: missing predictions for {prop}/{feature}")
+                print(
+                    f"Skipping matched comparison: missing predictions for {prop}/{feature}"
+                )
                 predictions[feature] = None
                 continue
             frame = pd.read_csv(path, dtype={"ID": str}).set_index("ID")
@@ -268,32 +285,54 @@ def getMatchedFTPerformanceDf(
             predictions[feature] = pd.to_numeric(frame[column], errors="coerce")
         if any(predictions[feature] is None for feature in (ft_feature, base_feature)):
             continue
-        matched = pd.concat(
-            [true, predictions[ft_feature].rename("ft_pred"),
-             predictions[base_feature].rename("base_pred")],
-            axis=1, join="inner",
-        ).replace([np.inf, -np.inf], np.nan).dropna()
+        matched = (
+            pd.concat(
+                [
+                    true,
+                    predictions[ft_feature].rename("ft_pred"),
+                    predictions[base_feature].rename("base_pred"),
+                ],
+                axis=1,
+                join="inner",
+            )
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+        )
         for split, frame in (
             ("external", matched),
             ("external_3xIQR", matched.loc[matched["true"].between(lower, upper)]),
         ):
             if len(frame) < 2:
-                print(f"Skipping {prop}/{split}/{ft_feature}: fewer than two shared molecules")
+                print(
+                    f"Skipping {prop}/{split}/{ft_feature}: fewer than two shared molecules"
+                )
                 continue
             directory = Path(save_path) / prop / split / "ft_differences"
             directory.mkdir(parents=True, exist_ok=True)
-            frame.to_csv(directory / f"{ft_feature}_vs_{base_feature}_matched_predictions.csv", index_label="ID")
-            for feature, column in ((ft_feature, "ft_pred"), (base_feature, "base_pred")):
+            frame.to_csv(
+                directory / f"{ft_feature}_vs_{base_feature}_matched_predictions.csv",
+                index_label="ID",
+            )
+            for feature, column in (
+                (ft_feature, "ft_pred"),
+                (base_feature, "base_pred"),
+            ):
                 error = frame[column] - frame["true"]
-                rows.append({
-                    "property": prop, "split": split, "feature_set": feature,
-                    "comparison_pair": ft_feature, "stat": "mean", "n": len(frame),
-                    "pearson_r": frame["true"].corr(frame[column]),
-                    "r2": calculateR2(frame["true"], frame[column]),
-                    "rmse": error.pow(2).mean() ** 0.5,
-                    "bias": error.mean(),
-                    "sdep": (error - error.mean()).pow(2).mean() ** 0.5,
-                })
+                rows.append(
+                    {
+                        "property": prop,
+                        "split": split,
+                        "feature_set": feature,
+                        "comparison_pair": ft_feature,
+                        "stat": "mean",
+                        "n": len(frame),
+                        "pearson_r": frame["true"].corr(frame[column]),
+                        "r2": calculateR2(frame["true"], frame[column]),
+                        "rmse": error.pow(2).mean() ** 0.5,
+                        "bias": error.mean(),
+                        "sdep": (error - error.mean()).pow(2).mean() ** 0.5,
+                    }
+                )
     return pd.DataFrame(rows)
 
 
@@ -306,7 +345,9 @@ def getFTDifferenceDf(
     if data.empty:
         return pd.DataFrame()
     if "comparison_pair" not in data or "n" not in data:
-        raise ValueError("FT differences require scores calculated on matched molecule IDs")
+        raise ValueError(
+            "FT differences require scores calculated on matched molecule IDs"
+        )
     mean_df = data.loc[
         data["stat"] == "mean",
         ["feature_set", "comparison_pair", "n", metric_col],
@@ -316,7 +357,9 @@ def getFTDifferenceDf(
 
     rows = []
     for ft_feature, base_feature in FT_FEATURE_PAIRS.items():
-        pair_df = mean_df.loc[mean_df["comparison_pair"] == ft_feature].set_index("feature_set")
+        pair_df = mean_df.loc[mean_df["comparison_pair"] == ft_feature].set_index(
+            "feature_set"
+        )
         mean_by_feature = pair_df[metric_col]
         if (
             ft_feature not in mean_by_feature.index
@@ -733,21 +776,33 @@ def plotFTDifferenceSummaryBars(
 
             ax.axhline(0, color="black", linewidth=1)
             property_labels = {
-                "bp": "Boiling Point", "logd": "logD", "pka": "pKa (OChem)",
-                "pka_paper1_basic": "pKa (basic)", "pka_paper1_acidic": "pKa (acidic)",
-                "log_ld50": "log(LD50)", "pic50": "BRD4 pIC50",
-                "hole_re": "Hole R.E", "elec_re": "Electron R.E",
-                "aq_sol": "Aqueous Solubility", "egfr_pic50": "EGFR pIC50",
+                "bp": "Boiling Point",
+                "logd": "logD",
+                "pka": "pKa (OChem)",
+                "pka_paper1_basic": "pKa (basic)",
+                "pka_paper1_acidic": "pKa (acidic)",
+                "log_ld50": "log(LD50)",
+                "pic50": "BRD4 pIC50",
+                "hole_re": "Hole R.E",
+                "elec_re": "Electron R.E",
+                "aq_sol": "Aqueous Solubility",
+                "egfr_pic50": "EGFR pIC50",
             }
             ax.set_xticks(range(len(property_order)))
             ax.set_xticklabels(
                 [property_labels.get(prop, prop) for prop in property_order],
-                rotation=45, ha="right", fontweight="bold",
+                rotation=45,
+                ha="right",
+                fontweight="bold",
             )
             ax.set_xlabel("Property", fontsize=12, weight="bold")
-            metric_label = "Pearson r" if metric in METRIC_ALIASES["pearson_r"] else metric
+            metric_label = (
+                "Pearson r" if metric in METRIC_ALIASES["pearson_r"] else metric
+            )
             ax.set_ylabel(
-                f"Δ {metric_label}\n(Fine-Tuned vs. Pretrained)", fontsize=12, weight="bold",
+                f"Δ {metric_label}\n(Fine-Tuned vs. Pretrained)",
+                fontsize=12,
+                weight="bold",
             )
             ax.set_title(
                 "Fine-Tuned vs Pretrained Embeddings\n"
@@ -758,22 +813,32 @@ def plotFTDifferenceSummaryBars(
             ax.tick_params(axis="x", labelrotation=45, labelsize=10)
             ax.tick_params(axis="y", labelsize=10)
             feature_labels = {
-                "selformer": "SELFormer", "molformer": "MolFormer-IBM",
-                "molformer-ibm": "MolFormer-IBM", "molformer-c3-1b": "MolFormer-DC",
-                "molformer-dc": "MolFormer-DC", "chemberta": "ChemBERTa-DC",
-                "chemberta-dc": "ChemBERTa-DC", "chembertasey": "ChemBERTa-Sey",
+                "selformer": "SELFormer",
+                "molformer": "MolFormer-IBM",
+                "molformer-ibm": "MolFormer-IBM",
+                "molformer-c3-1b": "MolFormer-DC",
+                "molformer-dc": "MolFormer-DC",
+                "chemberta": "ChemBERTa-DC",
+                "chemberta-dc": "ChemBERTa-DC",
+                "chembertasey": "ChemBERTa-Sey",
                 "chemberta-sey": "ChemBERTa-Sey",
             }
-            pair_bases = metric_df.drop_duplicates("feature_pair").set_index("feature_pair")["base_feature"]
+            pair_bases = metric_df.drop_duplicates("feature_pair").set_index(
+                "feature_pair"
+            )["base_feature"]
             handles, labels = ax.get_legend_handles_labels()
-            display_labels = [feature_labels.get(pair_bases[label], pair_bases[label]) for label in labels]
+            display_labels = [
+                feature_labels.get(pair_bases[label], pair_bases[label])
+                for label in labels
+            ]
             # Keep distinct pairs identifiable if aliases or multiple FT variants coexist.
             display_labels = [
                 f"{display} ({label})" if display_labels.count(display) > 1 else display
                 for label, display in zip(labels, display_labels)
             ]
             ax.legend(
-                handles, display_labels,
+                handles,
+                display_labels,
                 title="Feature Set",
                 bbox_to_anchor=(1.02, 1),
                 loc="upper left",
@@ -786,7 +851,9 @@ def plotFTDifferenceSummaryBars(
                 bbox_inches="tight",
             )
             plt.close()
-            print(f"Saved FT comparison summary: {plot_dir / f'{split_name}_{metric}_ft_difference_summary_bar.png'}")
+            print(
+                f"Saved FT comparison summary: {plot_dir / f'{split_name}_{metric}_ft_difference_summary_bar.png'}"
+            )
 
 
 def loadFeaturePattern(path: str | Path) -> pd.DataFrame:
