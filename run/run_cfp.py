@@ -9,6 +9,7 @@ import pandas as pd
 from pathlib import Path
 import sys
 from glob import glob
+import json
 
 # %% ===== Project Imports & Pathing Setup =====
 RUN_DIR = Path(__file__).resolve().parent
@@ -60,41 +61,10 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--n-estimators",
-    nargs="+",
-    type=int,
-    default=[200],
-)
-
-parser.add_argument(
-    "--max-features",
-    nargs="+",
-    default=["sqrt"],
-    help="Number of features to process at each node",
-)
-
-parser.add_argument(
-    "--max-depth",
-    nargs="+",
-    type=int,
-    default=[50],
-    help="Maximum depth of the Random Forest",
-)
-
-parser.add_argument(
-    "--min-samples-split",
-    nargs="+",
-    type=int,
-    default=[2],
-    help="Minimum samples to split a node",
-)
-
-parser.add_argument(
-    "--min-samples-leaf",
-    nargs="+",
-    type=int,
-    default=[2],
-    help="Minimum samples to make a leaf node",
+    "--model-name",
+    type=str,
+    default="random_forest",
+    help="Model to train using the configured hyperparameters",
 )
 
 parser.add_argument(
@@ -157,6 +127,19 @@ save_path = FULL_PATHING["prediction_output_dirs"][save_dir][property_dataset][
     identifier
 ]
 
+model_name = args.model_name
+
+# Loading relevant hyperparameters and saving to result path
+hyperparameter_path = RUN_DIR / "model_hyperparameters.json"
+with open(hyperparameter_path, "r") as f:
+    hyperparameter_config = json.load(f)
+if model_name not in hyperparameter_config:
+    raise ValueError(f"No hyperparameters configured for model '{model_name}'")
+hyper_params = hyperparameter_config[model_name]
+save_path.mkdir(parents=True, exist_ok=True)
+with open(save_path / f"{model_name}_hyperparameters.json", "w") as f:
+    json.dump(hyper_params, f, indent=4)
+
 
 # %% ===== Helper Functions =====
 def getFeatureFiles(feature_path: str | Path) -> list[Path]:
@@ -199,7 +182,7 @@ def loadAndCleanData(
         df,
         max_nan_fraction=0.10,
         drop_constant_cols=True,
-        median_impute=True,
+        median_impute=False,
         correlation_threshold=correlation_threshold,
     )
 
@@ -222,19 +205,18 @@ print(f"[Multi-Target RF] mols={mols}, train={train}, test={target}, id={identif
 print(f"Train shape: {train_df.shape}, Test shape: {target_df.shape}")
 print(f"Save path: {save_path}")
 
-model = TL(log_to_file=False, log_identifier=identifier)
-model.trainMultiTargetRFModels(
+model = TL(
+    log_to_file=False,
+    log_identifier=identifier,
+)
+
+model.trainMultiTargetModels(
     features_df=train_df,
     targets_df=target_df,
+    model_name=model_name,
+    hyper_params=hyper_params,
     output_csv=f"{identifier}.csv",
     existing_performance_csv=save_path / f"{identifier}.csv",
-    hyper_params={
-        "n_estimators": args.n_estimators,
-        "max_features": args.max_features,
-        "max_depth": args.max_depth,
-        "min_samples_split": args.min_samples_split,
-        "min_samples_leaf": args.min_samples_leaf,
-    },
     n_resamples=args.n_resamples,
     test_size=args.test_size,
     save_path=save_path,
