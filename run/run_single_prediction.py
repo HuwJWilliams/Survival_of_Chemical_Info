@@ -1,5 +1,5 @@
 """
-Script to train, run, and save predictions using Random Forest Regressor Models
+Script to train, run, and save predictions using various regressor models
 """
 
 # %% ===== Python Imports =====
@@ -39,6 +39,14 @@ from group_descriptors import getGroups
 
 # %% ===== Argument Parsing =====
 p = argparse.ArgumentParser()
+
+p.add_argument(
+    "--model-name",
+    type == "str",
+    required=True,
+    help="Model type to use. E.g., random_forest, svm, ridge, mlp",
+)
+
 p.add_argument(
     "--predict-on", required=True, choices=list(FULL_PATHING["targets"].keys())
 )
@@ -46,7 +54,7 @@ p.add_argument("--feature-set", required=True, choices=SUPPORTED_FEATURE_SETS)
 p.add_argument("--target-column", default=None, help="Override the target column name")
 p.add_argument("--identifier", default=None, help="Run identifier suffix (optional)")
 p.add_argument(
-    "--repeats", type=int, default=1, help="Number of independent RF repeats to run"
+    "--repeats", type=int, default=1, help="Number of independent repeats to run"
 )
 p.add_argument(
     "--base-seed",
@@ -119,6 +127,8 @@ def getAdditionalFeaturesOutDirName(add_feats: dict) -> str:
 
 
 args = p.parse_args()
+
+model_name = args.model_name
 task = args.predict_on
 feat = args.feature_set
 target_col = args.target_column or TARGET_COLUMNS[task]
@@ -127,7 +137,7 @@ max_nan_frac = args.max_nan_frac
 corr_threshold = args.corr_threshold
 in_features = FULL_PATHING["full_features"][task][feat]
 in_targets = FULL_PATHING["targets"][task]
-out_dir = FULL_PATHING["prediction_output_dirs"]["rf"][task][feat]
+out_dir = FULL_PATHING["prediction_output_dirs"][model_name][task][feat]
 add_feats = args.additional_features
 
 if add_feats is not None and add_feats.get("feature_set") is not None:
@@ -141,13 +151,23 @@ if add_feats is not None and add_feats.get("feature_set") is not None:
     with open(out_dir / "additional_features_config.json", "w") as f:
         json.dump(add_feats, f, indent=4)
 
-print(f"[RF] task={task}  feature={feat}")
+        hyperparameter_path = RUN_DIR / "model_hyperparameters.json"
+
+with open(hyperparameter_path, "r") as f:
+    hyperparameter_config = json.load(f)
+
+if model_name not in hyperparameter_config:
+    raise ValueError(f"No hyperparameters configured for model '{model_name}'")
+
+hyper_params = hyperparameter_config[model_name]
+
+print(f"[{model_name.upper()}] task={task}  feature={feat}")
 print(f"Features: {in_features}")
 print(f"Targets : {in_targets}")
 print(f"Output  : {out_dir}")
 print(f"Target column: {target_col}")
 
-# %% ===== Setting Up Data =====
+# %%F ===== Setting Up Data =====
 
 X = loadData(in_features, index_col="ID", wildcard="*")
 
@@ -275,16 +295,11 @@ for repeat_i in range(args.repeats):
 
     # %% ===== Training Models =====
     model = TL(log_identifier=f"{identifier}_repeat_{repeat_n:03d}")
-    final_model, _, internal_perf, _ = model.trainSingleTargetRFModel(
+    final_model, _, internal_perf, _, _ = model.trainSingleTargetModel(
         data=train_data,
         target_column=target_col,
-        hyper_params={
-            "n_estimators": [200, 400, 500],
-            "max_features": ["sqrt"],
-            "max_depth": [25, 5, 75, 100],
-            "min_samples_split": [2, 5],
-            "min_samples_leaf": [2, 4, 8],
-        },
+        model_name=model_name,
+        hyper_params=hyper_params,
         n_resamples=args.n_resamples,
         test_size=0.3,
         random_seed=repeat_seed,
@@ -292,8 +307,10 @@ for repeat_i in range(args.repeats):
         save_path=repeat_dir,
     )
 
-    _, _, external_perf = model.predictSingleTargetRF(
+    _, _, external_perf = model.predictSingleTarget(
         model=final_model,
+        model_name=model_name,
+        task_type="regression",
         data=test_data,
         target_column=target_col,
         calc_perf=True,
@@ -303,7 +320,7 @@ for repeat_i in range(args.repeats):
         perf_filename="external_perf",
     )
 
-    # %% ===== Recordiong and Averaging resample performances =====
+    # %% ===== Recording and Averaging resample performances =====
     repeat_perf = {"repeat": repeat_n, "seed": repeat_seed, **external_perf}
     repeat_perf_records.append(repeat_perf)
 
@@ -345,15 +362,16 @@ def summarise_performance(records: list[dict]) -> dict:
     }
 
 
-rf_performance = {
+model_performance = {
+    "model_name": model_name,
     "n_repeats": args.repeats,
     "base_seed": args.base_seed,
     "internal": summarise_performance(repeat_internal_records),
     "external": summarise_performance(repeat_perf_records),
 }
 
-with open(out_dir / "rf_performance.json", "w") as f:
-    json.dump(rf_performance, f, indent=4)
+with open(out_dir / f"{model_name}_performance.json", "w") as f:
+    json.dump(model_performance, f, indent=4)
 
 if repeat_pred_series:
     pred_df = pd.concat(repeat_pred_series, axis=1)
