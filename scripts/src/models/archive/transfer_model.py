@@ -12,7 +12,6 @@ import joblib
 import json
 import torch
 import os
-from typing import Callable
 
 FILE_DIR = Path(__file__).resolve()
 PROJ_DIR = FILE_DIR.parents[3]
@@ -22,12 +21,17 @@ SRC_DIR = SCRIPTS_DIR / "src"
 PALMERCHEM_SOFTWARE_ANALYSIS = Path.home() / "PalmerChem_Software" / "src" / "analysis"
 LOG_DIR = SRC_DIR / "models" / "logs"
 
+sys.path.insert(0, str(SRC_DIR / "models"))
+from Molecular_Embedding_vs_Descriptors.scripts.src.models.archive.RF_models import RFRegressor, RFClassifier, RFMultiClassifier
+
+sys.path.insert(0, str(PALMERCHEM_SOFTWARE_ANALYSIS))
+from performance_calculation import calculatePerformance
+
 sys.path.insert(0, str(SRC_DIR / "misc"))
 from misc_fns import loadData
 
 sys.path.insert(0, str(SRC_DIR / "models"))
-from RF_models import *
-from scripts.src.models.extra_models import *
+# from mlp_model import MLPRegressorTrainer, RegressionMLP
 
 sys.path.insert(0, str(SRC_DIR / "datasets"))
 from analyse_datasets import trimRowsByPercentile
@@ -36,35 +40,6 @@ from analyse_datasets import trimRowsByPercentile
 BATCH_SIZE = 64
 SEED = 42
 LOG_LEVEL = logging.DEBUG
-
-
-MODEL_REGISTRY = {
-    "random_forest": {
-        "regression": RFRegressor,
-        "binary_classification": RFClassifier,
-        "multiclass_classification": RFClassifier,
-    },
-    "ridge": {
-        "regression": RidgeRegressor,
-    },
-}
-
-from sklearn.model_selection import KFold, StratifiedKFold
-
-TASK_CONFIG = {
-    "regression": {
-        "cv_function": KFold,
-        "scoring": "neg_mean_squared_error",
-    },
-    "binary_classification": {
-        "cv_function": StratifiedKFold,
-        "scoring": "roc_auc",
-    },
-    "multiclass_classification": {
-        "cv_function": StratifiedKFold,
-        "scoring": "f1_macro",
-    },
-}
 
 
 # ============ Class ============ #
@@ -135,189 +110,13 @@ class TL:
 
         self.logger.info("Logger initialised.")
 
-    def alignInputData(self, features: pd.DataFrame, targets: pd.DataFrame):
-
-        common_indices = features.index.intersection(targets.index)
-        if len(common_indices) == 0:
-            error_msg = "No common indices found between features df and targets df"
-            self.logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        features = features.loc[common_indices]
-        targets = targets.loc[common_indices]
-        return features, targets
-
-    def processFeaturedata(
-        self,
-        target_column: str,
-        target_df: pd.DataFrame,
-        feature_df: pd.DataFrame,
-        remove_correlated_features: bool = False,
-        trim_by_percentile: bool = True,
-        percentile: float = 0.99,
-        min_training_samples: int = 2500,
-        min_samples_per_class: int = 20,
-    ):
-        """Prepare features and target, and identify the modelling task."""
-
-        if target_column.upper() == "SMILES":
-            self.logger.info(f"Skipping {target_column}: SMILES detected")
-            return None
-
-        if remove_correlated_features:
-            raise NotImplementedError("Correlated-feature removal is not implemented.")
-
-        # 1. Combine features and target
-        features = feature_df.drop(
-            columns=[target_column],
-            errors="ignore",
-        ).copy()
-
-        combined_data = features.join(
-            target_df[[target_column]],
-            how="inner",
-        )
-
-        # 2. Clean invalid observations
-        feature_columns = features.columns
-
-        combined_data[feature_columns] = (
-            combined_data[feature_columns]
-            .apply(pd.to_numeric, errors="coerce")
-            .replace([np.inf, -np.inf], np.nan)
-        )
-
-        valid_rows = (
-            combined_data[feature_columns].notna().all(axis=1)
-            & combined_data[target_column].notna()
-        )
-
-        n_removed = (~valid_rows).sum()
-        combined_data = combined_data.loc[valid_rows].copy()
-
-        if n_removed:
-            self.logger.info(
-                f"  {target_column}: removed {n_removed} rows "
-                "with missing or non-finite values"
-            )
-
-        if combined_data.empty:
-            self.logger.warning(f"Skipping {target_column}: no valid observations")
-            return None
-
-        # 3. Identify whether the target is categorical or numeric
-        target = combined_data[target_column]
-
-        is_categorical = pd.api.types.is_bool_dtype(target) or isinstance(
-            target.dtype, pd.CategoricalDtype
-        )
-
-        if not is_categorical:
-            numeric_target = pd.to_numeric(target, errors="coerce")
-
-            if numeric_target.notna().all():
-                combined_data[target_column] = numeric_target
-                target = numeric_target
-            else:
-                is_categorical = True
-
-        n_unique = target.nunique()
-
-        if n_unique < 2:
-            self.logger.warning(f"Skipping {target_column}: fewer than 2 unique values")
-            return None
-
-        # Numeric targets with 2-6 integer-like values are classified
-        if not is_categorical:
-            values = target.to_numpy(dtype=float)
-
-            is_integer_like = np.all(np.isclose(values, np.round(values), atol=1e-9))
-
-            is_categorical = is_integer_like and 2 <= n_unique <= 6
-
-        # 4. Determine task and apply task-specific filtering
-        if is_categorical:
-
-            if n_unique > 6:
-                self.logger.warning(
-                    f"Skipping {target_column}: "
-                    f"{n_unique} categorical classes exceed the limit of 6"
-                )
-                return None
-
-            # Remove under-represented classes
-            class_counts = combined_data[target_column].value_counts()
-
-            valid_classes = class_counts[class_counts >= min_samples_per_class].index
-
-            combined_data = combined_data.loc[
-                combined_data[target_column].isin(valid_classes)
-            ].copy()
-
-            n_unique = combined_data[target_column].nunique()
-
-            if n_unique < 2:
-                self.logger.warning(
-                    f"Skipping {target_column}: fewer than 2 classes "
-                    "remain after filtering"
-                )
-                return None
-
-            expected_task_type = (
-                "binary_classification"
-                if n_unique == 2
-                else "multiclass_classification"
-            )
-
-        else:
-            expected_task_type = "regression"
-
-            # Trim extreme regression targets
-            if trim_by_percentile:
-                trimmed_target, _ = trimRowsByPercentile(
-                    input_df=combined_data[[target_column]],
-                    columns=[target_column],
-                    percentile=percentile,
-                    tail="upper",
-                    return_removed_rows=True,
-                )
-
-                combined_data = combined_data.loc[
-                    combined_data.index.intersection(trimmed_target.index)
-                ].copy()
-
-        # 5. Final validation
-        n_samples = len(combined_data)
-
-        if n_samples < min_training_samples:
-            self.logger.warning(
-                f"Skipping {target_column}: {n_samples} samples remain; "
-                f"minimum is {min_training_samples}"
-            )
-            return None
-
-        if combined_data[target_column].nunique() < 2:
-            self.logger.warning(
-                f"Skipping {target_column}: insufficient target variation"
-            )
-            return None
-
-        self.logger.info(
-            f"  Target: {target_column}\n"
-            f"  Task: {expected_task_type}\n"
-            f"  Samples: {n_samples}\n"
-            f"  Unique target values: "
-            f"{combined_data[target_column].nunique()}"
-        )
-
-        return combined_data, expected_task_type
-
     # --- Model Training
-    def trainMultiTargetModels(
+    # --- --- Random Forests
+    def trainMultiTargetRFModels(
         self,
         features_df: pd.DataFrame,
         targets_df: pd.DataFrame,
-        model_name: str = "random_forest",
+        rf_regressor_class=None,
         hyper_params: dict = {
             "n_estimators": [200, 400, 500],
             "max_features": ["sqrt"],
@@ -335,16 +134,16 @@ class TL:
         skip_existing: bool = True,
         save_models: bool = True,
         save_path: str = "./",
+        log_level=logging.DEBUG,
         trim_by_percentile: bool = True,
         percentile: float = 0.99,
         save_feat_imp: bool = False,
         min_training_samples: int = 2500,
         min_samples_per_class: int = 20,
-        outer_n_jobs: int | None = None,
-        inner_n_jobs: int | None = None,
+        n_jobs: int | None = None,
     ) -> pd.DataFrame:
         """
-        Train ML models for multiple target columns using logging.
+        Train Random Forest models for multiple target columns using logging.
 
         Classification targets with classes below min_samples_per_class are dropped
         rather than skipping the target entirely. If dropping small classes reduces
@@ -352,11 +151,15 @@ class TL:
         classification. If fewer than 2 classes remain the target is skipped.
         """
 
+
         total_performance_df = pd.DataFrame()
+        regressor_cls = (
+            rf_regressor_class if rf_regressor_class is not None else RFRegressor
+        )
         completed_targets = set()
 
-        outer_n_jobs = 1 if outer_n_jobs is None else outer_n_jobs
-        inner_n_jobs = 1 if inner_n_jobs is None else inner_n_jobs
+        # Cache n_jobs once so every target uses the same parallelism setting.
+        n_jobs = n_jobs if n_jobs is not None else os.cpu_count()
 
         self.logger.debug(f"Existing performance CSV path: {existing_performance_csv}")
 
@@ -368,13 +171,27 @@ class TL:
                 self.logger.info(
                     f"Loaded existing performance data from {existing_performance_csv}"
                 )
-
             except Exception as e:
                 self.logger.warning(f"Could not load existing performance CSV: {e}")
 
         # Align indices
-        features_df, targets_df = self.alignInputData(
-            features=features_df, targets=targets_df
+        common_indices = features_df.index.intersection(targets_df.index)
+        if len(common_indices) == 0:
+            self.logger.error(
+                "No common indices found between features_df and targets_df"
+            )
+            raise ValueError(
+                "No common indices found between features_df and targets_df"
+            )
+
+        features_df = features_df.loc[common_indices]
+        targets_df = targets_df.loc[common_indices]
+
+        self.logger.info(
+            f"Training models for {len(targets_df.columns)} target columns"
+        )
+        self.logger.info(
+            f"Using {len(common_indices)} samples with {len(features_df.columns)} features"
         )
 
         save_path = Path(save_path)
@@ -383,164 +200,426 @@ class TL:
         combined_feat_importance_csv = save_path / "all_feature_importance.csv"
 
         for i, target_column in enumerate(targets_df.columns):
-            result = self.processFeaturedata(
-                target_column=target_column,
-                target_df=targets_df,
-                feature_df=features_df,
-                remove_correlated_features=False,
-                trim_by_percentile=trim_by_percentile,
-                percentile=percentile,
-                min_training_samples=min_training_samples,
-                min_samples_per_class=min_samples_per_class,
+            target_column = str(target_column).strip()
+
+            if target_column.upper() == "SMILES":
+                self.logger.info(f"Skipping {target_column}: SMILES column detected")
+                continue
+
+            self.logger.info(
+                f"Processing target: {target_column} ({i+1}/{len(targets_df.columns)})"
+            )
+            current_target = targets_df[target_column]
+            current_features_df = features_df.drop(
+                columns=[target_column], errors="ignore"
             )
 
-            if result is None:
+            # Build combined data (inner join, no trimming yet)
+            combined_data = pd.concat(
+                [current_features_df, current_target], axis=1, join="inner"
+            )
+
+            # Drop rows where target is missing
+            combined_data = combined_data.loc[
+                combined_data[target_column].notna()
+            ].copy()
+
+            # ── Determine is_class_like BEFORE trimming ───────────────────────────
+            non_na_target = combined_data[target_column].dropna()
+
+            is_class_like = False
+            if (
+                pd.api.types.is_object_dtype(non_na_target)
+                or isinstance(non_na_target.dtype, pd.CategoricalDtype)
+                or pd.api.types.is_bool_dtype(non_na_target)
+            ):
+                is_class_like = True
+            elif pd.api.types.is_numeric_dtype(non_na_target):
+                arr = non_na_target.to_numpy(dtype=float)
+                is_class_like = bool(np.all(np.isclose(arr, np.round(arr), atol=1e-9)))
+
+            # ── Trim by percentile only for regression targets ────────────────────
+            if trim_by_percentile and not is_class_like:
+                target_df = combined_data[[target_column]]
+                trimmed_target_df, _ = trimRowsByPercentile(
+                    input_df=target_df,
+                    columns=[target_column],
+                    percentile=percentile,
+                    tail="upper",
+                    return_removed_rows=True,
+                )
+                common_idx = current_features_df.index.intersection(
+                    trimmed_target_df.index
+                )
+                combined_data = pd.concat(
+                    [
+                        current_features_df.loc[common_idx],
+                        trimmed_target_df.loc[common_idx, target_column],
+                    ],
+                    axis=1,
+                )
+                combined_data = combined_data.loc[
+                    combined_data[target_column].notna()
+                ].copy()
+
+            # ── Check minimum samples ─────────────────────────────────────────────
+            if len(combined_data) < min_training_samples:
+                self.logger.warning(
+                    f"Skipping {target_column}: only {len(combined_data)} samples "
+                    f"after filtering; minimum is {min_training_samples}"
+                )
                 continue
 
-            combined_df, expected_task_type = result
+            # ── Check features are finite ─────────────────────────────────────────
+            feature_cols = [c for c in combined_data.columns if c != target_column]
+            inf_cols = [
+                c
+                for c in feature_cols
+                if np.any(
+                    ~np.isfinite(
+                        combined_data[c].to_numpy(dtype=float, na_value=np.nan)
+                    )
+                )
+            ]
+            if inf_cols:
+                self.logger.warning(
+                    f"  {target_column}: {len(inf_cols)} feature column(s) contain NaN/inf values "
+                    f"— dropping those rows. Columns: {inf_cols[:5]}{'...' if len(inf_cols) > 5 else ''}"
+                )
+                combined_data = combined_data.replace([np.inf, -np.inf], np.nan).dropna(
+                    subset=feature_cols
+                )
 
-            model_class = MODEL_REGISTRY[model_name][expected_task_type]
-            task_config = TASK_CONFIG[expected_task_type]
+            if len(combined_data) < min_training_samples:
+                self.logger.warning(
+                    f"Skipping {target_column}: only {len(combined_data)} samples after dropping "
+                    f"non-finite feature rows; minimum is {min_training_samples}"
+                )
+                continue
 
-            # ── Skip or rerun based on model and task type ──────────────
-            if skip_existing and not total_performance_df.empty:
+            # ── Re-derive non_na_target from cleaned data ─────────────────────────
+            non_na_target = combined_data[target_column].dropna()
+            n_unique = int(non_na_target.nunique())
 
-                if {"model", "task_type"}.issubset(total_performance_df.columns):
+            self.logger.info(f"  Samples after filtering: {len(combined_data)}")
+            self.logger.info(f"  Target unique values: {n_unique}")
 
-                    existing = total_performance_df.loc[
-                        (total_performance_df.index == target_column)
-                        & (total_performance_df["model"] == model_name)
+            if n_unique < 2:
+                self.logger.warning(
+                    f"  Skipping {target_column}: fewer than 2 unique target values"
+                )
+                continue
+
+            # ── Cast numeric class-like targets to int ────────────────────────────
+            if is_class_like and pd.api.types.is_numeric_dtype(non_na_target):
+                combined_data[target_column] = (
+                    pd.to_numeric(combined_data[target_column], errors="coerce")
+                    .round()
+                    .astype("Int64")
+                )
+                combined_data = combined_data.loc[
+                    combined_data[target_column].notna()
+                ].copy()
+                combined_data[target_column] = combined_data[target_column].astype(int)
+
+                # Recompute n_unique after casting
+                n_unique = int(combined_data[target_column].nunique())
+
+                if n_unique < 2:
+                    self.logger.warning(
+                        f"  Skipping {target_column}: fewer than 2 unique target values after casting"
+                    )
+                    continue
+
+            # ── Assign initial task type ──────────────────────────────────────────
+            if is_class_like and n_unique == 2:
+                expected_task_type = "binary_classification"
+            elif is_class_like and 3 <= n_unique <= 6:
+                expected_task_type = "multiclass_classification"
+            else:
+                expected_task_type = "regression"
+
+            # ── Filter under-represented classes ──────────────────────────────────
+            # Done before the skip check so that expected_task_type is finalised
+            # before any skip/re-run decision is made.
+            if expected_task_type in {
+                "binary_classification",
+                "multiclass_classification",
+            }:
+                class_counts = combined_data[target_column].value_counts()
+                small_classes = class_counts[
+                    class_counts < min_samples_per_class
+                ].index.tolist()
+
+                if small_classes:
+                    self.logger.warning(
+                        f"  {target_column}: dropping {len(small_classes)} class(es) with "
+                        f"fewer than {min_samples_per_class} samples: {small_classes}"
+                    )
+                    combined_data = combined_data[
+                        ~combined_data[target_column].isin(small_classes)
+                    ].copy()
+
+                # Re-derive n_unique after dropping classes
+                n_unique = int(combined_data[target_column].nunique())
+
+                if n_unique < 2:
+                    self.logger.warning(
+                        f"Skipping {target_column}: fewer than 2 classes remain "
+                        f"after dropping under-represented classes"
+                    )
+                    continue
+
+                # Re-check minimum samples after row removal
+                if len(combined_data) < min_training_samples:
+                    self.logger.warning(
+                        f"Skipping {target_column}: only {len(combined_data)} samples remain "
+                        f"after dropping small classes; minimum is {min_training_samples}"
+                    )
+                    continue
+
+                # Re-evaluate task type — only for classification targets.
+                # Filtering can only reduce n_unique, so > 6 is unreachable here.
+                if n_unique == 2:
+                    expected_task_type = "binary_classification"
+                elif 3 <= n_unique <= 6:
+                    expected_task_type = "multiclass_classification"
+                else:
+                    raise RuntimeError(
+                        f"Unexpected n_unique={n_unique} after class filtering for {target_column}; "
+                        f"expected ≤ 6 since task was classification before filtering"
+                    )
+
+                self.logger.info(
+                    f"  After class filtering: {n_unique} classes remain → {expected_task_type}"
+                )
+
+            # ── Skip or overwrite based on saved task type ────────────────────────
+            if skip_existing and target_column in completed_targets:
+                previous_task_type = None
+                if "task_type" in total_performance_df.columns:
+                    previous_task_type = total_performance_df.loc[
+                        target_column, "task_type"
                     ]
 
-                    if not existing.empty:
+                if previous_task_type == expected_task_type:
+                    self.logger.info(
+                        f"Skipping {target_column} ({i+1}/{len(targets_df.columns)})... "
+                        f"already processed as {previous_task_type}"
+                    )
+                    continue
 
-                        if (existing["task_type"] == expected_task_type).all():
-                            self.logger.info(
-                                f"Skipping {model_name}: {target_column} "
-                                f"(already processed as {expected_task_type})"
-                            )
-                            continue
+                self.logger.info(
+                    f"Re-running {target_column} ({i+1}/{len(targets_df.columns)}): "
+                    f"previous task_type={previous_task_type}, expected task_type={expected_task_type}"
+                )
 
-                        self.logger.info(
-                            f"Re-running {model_name}: {target_column} "
-                            f"because the previously saved task type differs "
-                            f"from {expected_task_type}"
+            self.logger.info(f"  n_unique: {n_unique}")
+            self.logger.info(
+                f"  unique values: {sorted(combined_data[target_column].dropna().unique())}"
+            )
+            self.logger.info(f"  is_class_like: {is_class_like}")
+            self.logger.info(f"  expected_task_type: {expected_task_type}")
+
+            # ── Train ─────────────────────────────────────────────────────────────
+            if expected_task_type == "binary_classification":
+                self.logger.info(f"  n_unique == 2 → RFClassifier")
+                try:
+                    rf_model = RFClassifier(
+                        cv_function=StratifiedKFold,
+                        hp_search_function=GridSearchCV,
+                        cv_kwargs={
+                            "n_splits": cv_splits,
+                            "shuffle": True,
+                            "random_state": random_seed,
+                        },
+                        hp_search_kwargs={"cv": cv_splits, "scoring": "roc_auc"},
+                        log_level=log_level,
+                        random_seed=random_seed,
+                    )
+                    final_model, best_params, performance_dict, feat_importance_df = (
+                        rf_model.trainRFClassifier(
+                            n_resamples=n_resamples,
+                            data=combined_data,
+                            target_column=target_column,
+                            hyperparameters=hyper_params,
+                            test_size=test_size,
+                            save_interval_models=False,
+                            save_path=save_path,
+                            save_final_model=save_models,
+                            plot_feat_importance=False,
+                            batch_size=batch_size,
+                            n_jobs=n_jobs,
+                            final_rf_seed=None,
+                            final_model_name=f"{target_column}_model",
                         )
+                    )
+                    performance_dict["task_type"] = "binary_classification"
+                except Exception as e:
+                    self.logger.error(
+                        f"  Error training model for {target_column}: {str(e)}"
+                    )
+                    continue
 
-            try:
-                model = model_class(
-                    cv_function=task_config["cv_function"],
-                    hp_search_function=GridSearchCV,
-                    cv_kwargs={
-                        "n_splits": cv_splits,
-                        "shuffle": True,
-                    },
-                    hp_search_kwargs={
-                        "scoring": task_config["scoring"],
-                        "refit": True,
-                    },
-                    random_seed=random_seed,
-                )
-                (
-                    final_model,
-                    best_params,
-                    aggregated_performance,
-                    final_performance,
-                    feat_importance_df,
-                ) = model.train(
-                    n_resamples=n_resamples,
-                    data=combined_df,
-                    target_column=target_column,
-                    hyperparameters=hyper_params,
-                    test_size=test_size,
-                    batch_size=batch_size,
-                    outer_n_jobs=outer_n_jobs,
-                    inner_n_jobs=inner_n_jobs,
-                    save_final_model=save_models,
-                    save_path=save_path,
-                    final_model_name=f"{target_column}_{model_name}",
-                )
+            elif expected_task_type == "multiclass_classification":
+                self.logger.info(f"  3 <= n_unique <= 6 → RFMultiClassifier")
+                try:
+                    rf_model = RFMultiClassifier(
+                        cv_function=StratifiedKFold,
+                        hp_search_function=GridSearchCV,
+                        cv_kwargs={
+                            "n_splits": cv_splits,
+                            "shuffle": True,
+                            "random_state": random_seed,
+                        },
+                        hp_search_kwargs={"cv": cv_splits, "scoring": "f1_macro"},
+                        log_level=log_level,
+                        random_seed=random_seed,
+                    )
+                    final_model, best_params, performance_dict, feat_importance_df = (
+                        rf_model.trainRFMultiClassifier(
+                            n_resamples=n_resamples,
+                            data=combined_data,
+                            target_column=target_column,
+                            hyperparameters=hyper_params,
+                            test_size=test_size,
+                            save_interval_models=False,
+                            save_path=save_path,
+                            save_final_model=save_models,
+                            plot_feat_importance=False,
+                            batch_size=batch_size,
+                            n_jobs=n_jobs,
+                            final_rf_seed=None,
+                            final_model_name=f"{target_column}_model",
+                        )
+                    )
+                    performance_dict["task_type"] = "multiclass_classification"
+                except Exception as e:
+                    self.logger.error(
+                        f"  Error training model for {target_column}: {str(e)}"
+                    )
+                    continue
 
-            except Exception as e:
-                self.logger.error(
-                    f"  Error training model for {target_column}: {str(e)}"
-                )
-                continue
+            else:
+                self.logger.info(f"  n_unique > 6 or not class-like → RFRegressor")
+                try:
+                    rf_model = regressor_cls(
+                        cv_function=KFold,
+                        hp_search_function=GridSearchCV,
+                        cv_kwargs={
+                            "n_splits": cv_splits,
+                            "shuffle": True,
+                            "random_state": random_seed,
+                        },
+                        hp_search_kwargs={
+                            "cv": cv_splits,
+                            "scoring": "neg_mean_squared_error",
+                        },
+                        log_level=log_level,
+                        random_seed=random_seed,
+                    )
+                    final_model, best_params, performance_dict, feat_importance_df = (
+                        rf_model.trainRFRegressor(
+                            n_resamples=n_resamples,
+                            data=combined_data,
+                            target_column=target_column,
+                            hyperparameters=hyper_params,
+                            test_size=test_size,
+                            save_interval_models=False,
+                            save_path=save_path,
+                            save_final_model=save_models,
+                            plot_feat_importance=False,
+                            batch_size=batch_size,
+                            n_jobs=n_jobs,
+                            final_rf_seed=None,
+                            final_model_name=f"{target_column}_model",
+                        )
+                    )
+                    performance_dict["task_type"] = "regression"
+                except Exception as e:
+                    self.logger.error(
+                        f"  Error training model for {target_column}: {str(e)}"
+                    )
+                    continue
 
-            #  Feature importance
+            # ── Feature importance ────────────────────────────────────────────────
             if (
                 save_feat_imp
                 and feat_importance_df is not None
                 and not feat_importance_df.empty
             ):
-                importance_col = f"Importance_{model_name}_{target_column}"
-
-                fi_df = (
-                    feat_importance_df[["Feature", "Importance"]]
-                    .drop_duplicates(subset="Feature")
-                    .set_index("Feature")
-                    .rename(columns={"Importance": importance_col})
+                safe_target_column = (
+                    str(target_column).replace("/", "_").replace("\\", "_")
                 )
+                fi_df = feat_importance_df.copy()
+                if "Feature" not in fi_df.columns:
+                    fi_df = fi_df.reset_index().rename(columns={"index": "Feature"})
 
-                if combined_feat_importance_csv.exists():
-                    saved_fi = pd.read_csv(
-                        combined_feat_importance_csv,
-                        index_col="Feature",
+                if "Importance" in fi_df.columns:
+                    imp_col = f"Importance_{safe_target_column}"
+                    fi_df = fi_df[["Feature", "Importance"]].rename(
+                        columns={"Importance": imp_col}
                     )
+                    fi_df = fi_df.drop_duplicates(subset=["Feature"], keep="first")
 
-                    saved_fi = saved_fi.drop(
-                        columns=[importance_col],
-                        errors="ignore",
-                    ).join(fi_df, how="outer")
+                    if combined_feat_importance_csv.exists():
+                        combined_df = pd.read_csv(combined_feat_importance_csv)
+                        if "Feature" not in combined_df.columns:
+                            combined_df = combined_df.reset_index().rename(
+                                columns={"index": "Feature"}
+                            )
+                        combined_df = combined_df.drop_duplicates(
+                            subset=["Feature"], keep="first"
+                        )
+                        stale_imp_cols = [
+                            col
+                            for col in combined_df.columns
+                            if col == imp_col or col.startswith(f"{imp_col}_")
+                        ]
+                        combined_df = combined_df.loc[
+                            :,
+                            ["Feature"]
+                            + [
+                                col
+                                for col in combined_df.columns
+                                if col.startswith("Importance_")
+                                and col not in stale_imp_cols
+                            ],
+                        ]
+                        combined_df = combined_df.set_index("Feature")
+                        fi_df = fi_df.set_index("Feature")
+                        combined_df = combined_df.reindex(
+                            combined_df.index.union(fi_df.index)
+                        )
+                        combined_df[imp_col] = fi_df[imp_col]
+                        combined_df = combined_df.reset_index()
+                    else:
+                        combined_df = fi_df
 
+                    combined_df.to_csv(combined_feat_importance_csv, index=False)
                 else:
-                    saved_fi = fi_df
-
-                saved_fi.to_csv(
-                    combined_feat_importance_csv,
-                    index_label="Feature",
-                )
-
+                    self.logger.warning(
+                        f"  Feature importance for {target_column} has no 'Importance' column; "
+                        "skipping cumulative feature-importance update."
+                    )
             elif save_feat_imp:
                 self.logger.warning(
-                    f"No feature importance for {model_name}: {target_column}"
+                    f"  No feature importance dataframe returned for {target_column}"
                 )
 
-            #  Update performance df and save
-            performance_row = {
-                "model": model_name,
-                "task_type": expected_task_type,
-                **aggregated_performance,
-                **{f"Final_{key}": value for key, value in final_performance.items()},
-            }
-
-            perf_df = pd.DataFrame(
-                [performance_row],
-                index=[target_column],
+            # ── Update performance df and save ────────────────────────────────────
+            perf_df = pd.DataFrame([performance_dict], index=[target_column])
+            total_performance_df = total_performance_df.drop(
+                index=[target_column], errors="ignore"
             )
-
-            # Replace only the matching model-target result
-            if (
-                not total_performance_df.empty
-                and "model" in total_performance_df.columns
-            ):
-                existing_mask = (total_performance_df.index == target_column) & (
-                    total_performance_df["model"] == model_name
-                )
-
-                total_performance_df = total_performance_df.loc[~existing_mask]
-
             total_performance_df = pd.concat(
-                [total_performance_df, perf_df],
-                axis=0,
-                sort=False,
+                [total_performance_df, perf_df], axis=0, sort=False
             )
 
             total_performance_df.to_csv(output_csv)
 
             self.logger.info(
-                f"Completed {model_name}: {target_column} "
-                f"({expected_task_type}) → saved to {output_csv}"
+                f"  Completed {target_column} ({performance_dict.get('task_type', 'unknown')}) → saved to {output_csv}"
             )
 
         self.logger.info(f"Completed training for {len(total_performance_df)} targets")
@@ -548,6 +627,7 @@ class TL:
 
         return total_performance_df
 
+    # region Hide code
     def trainWithinFeatureSetRFModels(
         self,
         data_df: pd.DataFrame,
@@ -1001,6 +1081,7 @@ class TL:
         return final_model, best_params, performance_dict, feat_importance_df
 
     # --- Making Predictions
+    # --- --- Random Forests
     def predictSingleTargetRF(
         self,
         model,
@@ -1200,3 +1281,6 @@ class TL:
 
     def _df_2_tensor(self, df: pd.DataFrame, dtype=torch.float32):
         return torch.tensor(df.to_numpy(), dtype=dtype)
+
+
+# endregion
