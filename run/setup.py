@@ -52,5 +52,5 @@ else:
     addRawDataPaths(
         raw_data_paths=args.set_paths,
         set_names=args.set_names,
-        json_name=args.json_name,
+        json_name=PATHING_JSON_NAME,
     )

@@ -23,7 +23,7 @@ from misc_fns import loadData
 
 sys.path.insert(0, str(SRC_DIR / "models"))
 from RF_models import *
-from scripts.src.models.extra_models import *
+from extra_models import *
 
 sys.path.insert(0, str(SRC_DIR / "datasets"))
 from analyse_datasets import trimRowsByPercentile
@@ -144,7 +144,7 @@ class TL:
         targets = targets.loc[common_indices]
         return features, targets
 
-    def processFeatureData(
+    def processInputData(
         self,
         target_column: str,
         target_df: pd.DataFrame,
@@ -372,7 +372,7 @@ class TL:
         combined_feat_importance_csv = save_path / "all_feature_importance.csv"
 
         for i, target_column in enumerate(targets_df.columns):
-            result = self.processFeatureData(
+            result = self.processInputData(
                 target_column=target_column,
                 target_df=targets_df,
                 feature_df=features_df,
@@ -387,6 +387,12 @@ class TL:
                 continue
 
             combined_df, expected_task_type = result
+
+            if expected_task_type not in MODEL_REGISTRY[model_name]:
+                self.logger.info(
+                    f"Skipping {target_column}: {model_name} does not support {expected_task_type}"
+                )
+                continue
 
             model_class = MODEL_REGISTRY[model_name][expected_task_type]
             task_config = TASK_CONFIG[expected_task_type]
@@ -606,7 +612,7 @@ class TL:
                 continue
 
             # Process selected features and target
-            result = self.processFeatureData(
+            result = self.processInputData(
                 target_column=target_column,
                 target_df=data_df[[target_column]],
                 feature_df=data_df[feature_cols],

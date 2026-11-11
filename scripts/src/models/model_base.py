@@ -36,6 +36,33 @@ def _json_default(value):
     raise TypeError(f"Cannot JSON-serialize {type(value).__name__}")
 
 
+def _aggregate_metric_statistics(performance_list: list[dict], labels: dict[str, str]) -> dict:
+    """Summarise held-out metrics across resamples, ignoring non-finite scores."""
+    means = {}
+    spread = {}
+    for metric, label in labels.items():
+        values = np.asarray([result[metric] for result in performance_list], dtype=float)
+        values = values[np.isfinite(values)]
+
+        means[label] = round(float(np.mean(values)), 4) if values.size else float("nan")
+        spread[f"{label}_std"] = (
+            round(float(np.std(values, ddof=1)), 4)
+            if values.size > 1
+            else float("nan")
+        )
+        spread[f"{label}_min"] = (
+            round(float(np.min(values)), 4) if values.size else float("nan")
+        )
+        spread[f"{label}_max"] = (
+            round(float(np.max(values)), 4) if values.size else float("nan")
+        )
+        spread[f"{label}_range"] = (
+            round(float(np.ptp(values)), 4) if values.size else float("nan")
+        )
+
+    return {**means, **spread}
+
+
 class ModelBase:
     """Shared workflow for sklearn regressors, classifiers and pipelines.
 
@@ -665,21 +692,7 @@ class RegressorBase(ModelBase):
             "r_spearman": "Spearman_r",
         }
 
-        aggregated = {}
-
-        for key, output in labels.items():
-            values = np.asarray(
-                [m[key] for m in performance_list],
-                dtype=float,
-            )
-
-            aggregated[output] = (
-                round(float(np.nanmean(values)), 4)
-                if np.isfinite(values).any()
-                else float("nan")
-            )
-
-        return aggregated
+        return _aggregate_metric_statistics(performance_list, labels)
 
 
 class ClassifierBase(ModelBase):
@@ -787,12 +800,4 @@ class ClassifierBase(ModelBase):
                 "auc": "AUC",
                 "mcc": "MCC",
             }
-        aggregated = {}
-        for name, output in labels.items():
-            values = np.asarray([m[name] for m in performance_list], dtype=float)
-            aggregated[output] = (
-                round(float(np.nanmean(values)), 4)
-                if np.isfinite(values).any()
-                else float("nan")
-            )
-        return aggregated
+        return _aggregate_metric_statistics(performance_list, labels)
