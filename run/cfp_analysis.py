@@ -63,6 +63,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--model-name",
+    choices=("random_forest", "svr", "ridge"),
+    help="Model to analyse when an experiment contains multiple models",
+)
+
+parser.add_argument(
     "--exclude-low-var",
     action="store_true",
     help="Flag to exclude low variance columns",
@@ -147,6 +153,7 @@ if args.run_avg:
         averageExperimentPerformance(
             exp_list=exp_list,
             cfp_dir=cfp_dir,
+            model_name=args.model_name,
         )
     )
 
@@ -173,7 +180,12 @@ else:
 
         exp_dir = Path(cfp_dir[exp])
         exp_perf_df_path = exp_dir / f"{exp}.csv"
-        exp_perf_df = pd.read_csv(exp_perf_df_path, index_col=0)
+        exp_perf_df = selectModelPerformance(
+            pd.read_csv(exp_perf_df_path, index_col=0),
+            model_name=args.model_name,
+        )
+
+        analysis_dir = exp_dir / "analysis" / args.model_name if args.model_name else exp_dir
 
         feature_source = args.property or "all"
         pred_ft_df_path = Path(FULL_PATHING["full_features"][feature_source][pred])
@@ -187,6 +199,6 @@ else:
             pred_ft_df=pred_ft_df,
             pred=pred,
             exp_name=exp,
-            exp_dir=exp_dir,
+            exp_dir=analysis_dir,
             args=args,
         )

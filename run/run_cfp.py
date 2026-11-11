@@ -1,5 +1,5 @@
 """
-Script to train Random Forest Regressors on one set of features to predict another
+Script to train a configured model on one feature set to predict another
 (e.g., train on ChemBERTa embeddings to predict RDKit descriptors)
 """
 
@@ -42,14 +42,14 @@ parser.add_argument(
     "--train",
     required=True,
     choices=SUPPORTED_FEATURE_SETS,
-    help="Features to train RF models on. Choices are:\n" f"{SUPPORTED_FEATURE_SETS}",
+    help="Features to train models on. Choices are:\n" f"{SUPPORTED_FEATURE_SETS}",
 )
 
 parser.add_argument(
     "--target",
     required=True,
     choices=SUPPORTED_FEATURE_SETS,
-    help="Features to test RF models on. Choices are:\n" f"{SUPPORTED_FEATURE_SETS}",
+    help="Features to predict with models. Choices are:\n" f"{SUPPORTED_FEATURE_SETS}",
 )
 
 parser.add_argument("--property", default="all", choices=SUPPORTED_TARGET_SETS)
@@ -69,6 +69,10 @@ parser.add_argument(
 
 parser.add_argument(
     "--n-resamples", type=int, default=1, help="Number of resamples in the outer loop"
+)
+
+parser.add_argument(
+    "--random-seed", type=int, default=None, help="Seed for reproducible splits and model fitting"
 )
 
 parser.add_argument(
@@ -109,7 +113,7 @@ parser.add_argument(
     "--minimum-targs",
     type=int,
     default=2500,
-    help="Minimum number of samples to train RF models",
+    help="Minimum number of samples to train models",
 )
 
 args = parser.parse_args()
@@ -204,7 +208,7 @@ target_df = loadAndCleanData(target, full_feats=full_feats, correlation_threshol
 common_idx = train_df.index.intersection(target_df.index)
 train_df, target_df = train_df.loc[common_idx], target_df.loc[common_idx]
 
-print(f"[Multi-Target RF] mols={mols}, train={train}, test={target}, id={identifier}")
+print(f"[Multi-Target {model_name}] mols={mols}, train={train}, test={target}, id={identifier}")
 print(f"Train shape: {train_df.shape}, Test shape: {target_df.shape}")
 print(f"Save path: {save_path}")
 
@@ -221,6 +225,7 @@ model.trainMultiTargetModels(
     output_csv=f"{identifier}.csv",
     existing_performance_csv=save_path / f"{identifier}.csv",
     n_resamples=args.n_resamples,
+    random_seed=args.random_seed,
     test_size=args.test_size,
     save_path=save_path,
     skip_existing=args.skip_existing,

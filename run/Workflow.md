@@ -248,6 +248,9 @@ The dataset to run cfp analysis for (e.g., "bp").
 `--run-experiment` (Optional)
 Argument to specify analysis for individual experiments.
 
+`--model-name` (Optional)
+Select `random_forest`, `svr`, or `ridge` when an experiment CSV contains results for multiple models. Analysis outputs for a selected model are saved in its own directory.
+
 `--run-avg` (Optional)
 Flag to average all experiment performances.
 

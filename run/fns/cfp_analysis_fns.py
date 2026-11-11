@@ -558,9 +558,35 @@ def plotGroupTaskFractionSummary(
     return summary_df
 
 
+def selectModelPerformance(
+    performance_df: pd.DataFrame,
+    model_name: str | None = None,
+) -> pd.DataFrame:
+    """Select one model before analysing a shared CFP performance table."""
+    if "model" not in performance_df.columns:
+        if model_name is not None:
+            raise ValueError("Performance table has no model column to filter")
+        return performance_df
+
+    if model_name is None:
+        models = performance_df["model"].dropna().unique()
+        if len(models) > 1:
+            raise ValueError(
+                f"Performance table contains multiple models {models.tolist()}; "
+                "select one with --model-name"
+            )
+        return performance_df
+
+    selected = performance_df.loc[performance_df["model"] == model_name]
+    if selected.empty:
+        raise ValueError(f"No results found for model '{model_name}'")
+    return selected
+
+
 def averageExperimentPerformance(
     exp_list: list[str],
     cfp_dir: dict[str, str | Path],
+    model_name: str | None = None,
 ):
     """
     Average performance tables across multiple CFP experiments.
@@ -591,6 +617,8 @@ def averageExperimentPerformance(
 
     pred = unique_preds[0]
     avg_exp_name = f"pred_{pred}_tr_avg"
+    if model_name is not None:
+        avg_exp_name = f"{avg_exp_name}_{model_name}"
 
     first_exp_dir = Path(cfp_dir[exp_list[0]])
     avg_dir = first_exp_dir.parent / avg_exp_name
@@ -605,7 +633,9 @@ def averageExperimentPerformance(
         if not exp_path.exists():
             raise FileNotFoundError(f"Could not find experiment file: {exp_path}")
 
-        exp_df = pd.read_csv(exp_path, index_col=0)
+        exp_df = selectModelPerformance(
+            pd.read_csv(exp_path, index_col=0), model_name=model_name
+        )
         dfs.append(exp_df)
 
     combined_df = pd.concat(

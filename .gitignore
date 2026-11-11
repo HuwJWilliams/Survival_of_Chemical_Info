@@ -21,6 +21,8 @@ results_pre_3D/
 *.log
 *.key
 *.sh
+!run/submit_cfp_sweep.sh
+!run/submit_cfp_feature_array.sh
 
 # Keep committed test fixtures, even when they match ignored artifact patterns
 !run/test/

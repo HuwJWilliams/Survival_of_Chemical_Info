@@ -452,7 +452,7 @@ class TL:
                     outer_n_jobs=outer_n_jobs,
                     inner_n_jobs=inner_n_jobs,
                     save_final_model=save_models,
-                    save_path=save_path,
+                    save_path=save_path / model_name / target_column,
                     final_model_name=f"{target_column}_{model_name}",
                 )
 
