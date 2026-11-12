@@ -58,7 +58,6 @@ for PROP in "${PROPERTIES[@]}"; do
                     --random-seed "$RANDOM_SEED"
                     --test-size "$TEST_SIZE"
                     --minimum-targs "$MINIMUM_TARGS"
-                    --save-models
                 )
 
                 if [[ "$MODEL_NAME" == "random_forest" ]]; then

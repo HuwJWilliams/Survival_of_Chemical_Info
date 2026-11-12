@@ -179,7 +179,7 @@ else:
         pred = split_name[1]
 
         exp_dir = Path(cfp_dir[exp])
-        exp_perf_df_path = exp_dir / f"{exp}.csv"
+        exp_perf_df_path = resolveCFPPerformancePath(exp_dir, exp, args.model_name)
         exp_perf_df = selectModelPerformance(
             pd.read_csv(exp_perf_df_path, index_col=0),
             model_name=args.model_name,

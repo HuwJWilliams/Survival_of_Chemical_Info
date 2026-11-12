@@ -45,6 +45,7 @@ def _aggregate_metric_statistics(performance_list: list[dict], labels: dict[str,
         values = values[np.isfinite(values)]
 
         means[label] = round(float(np.mean(values)), 4) if values.size else float("nan")
+        
         spread[f"{label}_std"] = (
             round(float(np.std(values, ddof=1)), 4)
             if values.size > 1

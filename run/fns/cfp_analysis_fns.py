@@ -558,6 +558,23 @@ def plotGroupTaskFractionSummary(
     return summary_df
 
 
+def resolveCFPPerformancePath(exp_dir, experiment, model_name=None):
+    """Prefer isolated model results, with fallback to legacy shared tables."""
+    exp_dir = Path(exp_dir)
+    if model_name is not None:
+        model_path = exp_dir / model_name / f"{experiment}.csv"
+        if model_path.exists():
+            return model_path
+    elif any(exp_dir.glob(f"*/{experiment}.csv")):
+        raise ValueError("Select model-specific results with --model-name")
+    legacy_path = exp_dir / f"{experiment}.csv"
+    if not legacy_path.exists():
+        raise FileNotFoundError(
+            f"No results found for {experiment}, model={model_name}, in {exp_dir}"
+        )
+    return legacy_path
+
+
 def selectModelPerformance(
     performance_df: pd.DataFrame,
     model_name: str | None = None,
@@ -628,7 +645,7 @@ def averageExperimentPerformance(
 
     for exp in exp_list:
         exp_dir = Path(cfp_dir[exp])
-        exp_path = exp_dir / f"{exp}.csv"
+        exp_path = resolveCFPPerformancePath(exp_dir, exp, model_name)
 
         if not exp_path.exists():
             raise FileNotFoundError(f"Could not find experiment file: {exp_path}")

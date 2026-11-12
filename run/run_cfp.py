@@ -134,6 +134,7 @@ save_path = FULL_PATHING["prediction_output_dirs"][save_dir][property_dataset][
 ]
 
 model_name = args.model_name
+save_path = save_path / model_name
 
 # Loading relevant hyperparameters and saving to result path
 hyperparameter_path = RUN_DIR / "model_hyperparameters.json"
