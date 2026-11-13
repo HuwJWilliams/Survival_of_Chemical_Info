@@ -1176,10 +1176,273 @@ if run_6:
         random_seed=ROC_RANDOM_SEED,
     )
 
-
-run_7=True
+run_7 = True
 if run_7:
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import NullLocator
+    from pathlib import Path
+    from mordred import Calculator, descriptors
 
-    df = "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/ridge/pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv"
+    def getMordredGroups(prefix="_mordred"):
+        """Return descriptor groups for Mordred descriptors."""
+        groups = {}
+        calc = Calculator(descriptors, ignore_3D=False)
 
-    
+        for desc in calc.descriptors:
+            module = desc.__module__.split(".")[-1]
+            name = str(desc).split(".")[-1]
+            name = f"{name}{prefix}"  # apply prefix
+            groups.setdefault(module, []).append(name)
+
+        return groups
+
+    csv_path = Path(
+        "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/"
+        "ridge/pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv"
+    )
+    metrics = ["RMSE"]  # any metric that has a matching *_std column
+    task = "regression"
+    bins = 50
+    threshold = 5.0  # % SD above which a descriptor is saved to the CSV
+
+    # Built once (the Calculator is slow to construct)
+    groups = getMordredGroups(prefix="_mordred")
+    desc_to_group = {d: g for g, members in groups.items() for d in members}
+
+    perf = pd.read_csv(csv_path, index_col=0)
+    if "task_type" in perf.columns:
+        perf = perf.loc[perf["task_type"] == task]
+
+    for metric in metrics:
+        std_col = f"{metric}_std"
+        if metric not in perf.columns or std_col not in perf.columns:
+            print(f"Skipping {metric}: missing '{metric}' or '{std_col}'")
+            continue
+
+        res = pd.DataFrame(
+            {
+                "mean": pd.to_numeric(perf[metric], errors="coerce"),
+                "std": pd.to_numeric(perf[std_col], errors="coerce"),
+            }
+        ).dropna()
+        res["pct_std"] = res["std"] / res["mean"].abs() * 100
+        res.index.name = "descriptor"
+        res = res.replace(-np.inf, np.inf).dropna(subset=["pct_std"])
+        if res.empty:
+            print(f"Skipping {metric}: no usable values (n_resamples=1 gives NaN std)")
+            continue
+
+        # ---- CSV of descriptors above the threshold, highest to lowest ----
+        high = res.loc[res["pct_std"] > threshold].sort_values(
+            "pct_std", ascending=False
+        )
+        high = high.rename(columns={"mean": f"{metric}_mean", "std": f"{metric}_std"})
+        high_path = (
+            csv_path.parent / f"{csv_path.stem}_{metric}_pct_std_over_{threshold:g}.csv"
+        )
+        high.to_csv(high_path)
+        print(f"{len(high)}/{len(res)} descriptors > {threshold:g}% -> {high_path}")
+
+        # ---- Histogram of everything ----
+        pct = res["pct_std"]
+        n_zero = int((pct == 0).sum())
+        n_inf = int(np.isinf(pct).sum())
+        positive = pct[np.isfinite(pct) & (pct > 0)]
+
+        if positive.empty:
+            print(f"Skipping histogram for {metric}: no positive finite values")
+        else:
+            lo, hi = positive.min(), positive.max()
+            if lo == hi:  # avoid a zero-width log range
+                lo, hi = lo / 1.5, hi * 1.5
+            edges = np.logspace(np.log10(lo), np.log10(hi), bins + 1)
+            step = edges[1] / edges[0]  # bin width as a ratio (log space)
+            median = pct[np.isfinite(pct)].median()
+
+            fig, ax = plt.subplots(figsize=(10, 5))
+            counts, _ = np.histogram(positive, bins=edges)
+            ax.bar(
+                edges[:-1],
+                counts,
+                width=np.diff(edges),
+                align="edge",
+                color="#4f8a8b",
+                edgecolor="black",
+                linewidth=0.6,
+                alpha=0.85,
+            )
+
+            extra_ticks, extra_labels = [], []
+            if n_zero:
+                x0 = edges[0] / step**3
+                ax.bar(
+                    x0,
+                    n_zero,
+                    width=x0 * (step - 1),
+                    align="edge",
+                    color="#7a7a7a",
+                    edgecolor="black",
+                    linewidth=0.6,
+                    alpha=0.85,
+                )
+                ax.text(
+                    x0 * np.sqrt(step), n_zero, str(n_zero), ha="center", va="bottom"
+                )
+                extra_ticks.append(x0 * np.sqrt(step))
+                extra_labels.append("0%")
+            if n_inf:
+                x1 = edges[-1] * step**2
+                ax.bar(
+                    x1,
+                    n_inf,
+                    width=x1 * (step - 1),
+                    align="edge",
+                    color="#b94a48",
+                    edgecolor="black",
+                    linewidth=0.6,
+                    alpha=0.85,
+                )
+                ax.text(x1 * np.sqrt(step), n_inf, str(n_inf), ha="center", va="bottom")
+                extra_ticks.append(x1 * np.sqrt(step))
+                extra_labels.append("∞\n(zero mean)")
+
+            ax.set_xscale("log")
+            d_lo, d_hi = int(np.floor(np.log10(lo))), int(np.ceil(np.log10(hi)))
+            decades = [
+                10.0**d
+                for d in range(d_lo, d_hi + 1)
+                if lo / step <= 10.0**d <= hi * step
+            ]
+            ax.xaxis.set_minor_locator(NullLocator())
+            ax.set_xticks(decades + extra_ticks)
+            ax.set_xticklabels([f"{d:g}" for d in decades] + extra_labels)
+
+            ax.axvline(
+                threshold,
+                color="black",
+                linestyle=":",
+                linewidth=1.5,
+                label=f"{threshold:g}% threshold ({len(high)} above)",
+            )
+            ax.axvline(
+                median,
+                color="#b94a48",
+                linestyle="--",
+                linewidth=1.5,
+                label=f"Median = {median:.2f}%",
+            )
+            ax.set_xlabel(f"{metric} SD as % of mean (across resamples, log scale)")
+            ax.set_ylabel("Number of descriptors")
+            ax.set_title(f"{csv_path.stem}: {metric} variability (n={len(res)})")
+            ax.legend()
+            ax.grid(axis="y", linestyle="--", alpha=0.35)
+            fig.tight_layout()
+
+            out = csv_path.parent / f"{csv_path.stem}_{metric}_pct_std_hist.png"
+            fig.savefig(out, dpi=300, bbox_inches="tight")
+            plt.close(fig)
+            print(f"Saved: {out}")
+
+        # ---- SD % by Mordred descriptor group ----
+        gdf = res.copy()
+        gdf["group"] = [desc_to_group.get(d, "Unmapped") for d in gdf.index]
+        n_unmapped = int((gdf["group"] == "Unmapped").sum())
+        if n_unmapped:
+            print(
+                f"{n_unmapped} descriptors not matched to a group "
+                f"(check the prefix matches the CSV index, e.g. '_mordred')"
+            )
+
+        rows = {}
+        for g, sub in gdf.groupby("group"):
+            p = sub["pct_std"]
+            fin = p[np.isfinite(p)]
+            rows[g] = {
+                "n": len(p),
+                "median_pct_std": fin.median() if len(fin) else np.nan,
+                "mean_pct_std": fin.mean() if len(fin) else np.nan,
+                "max_pct_std": p.max(),
+                f"n_over_{threshold:g}pct": int((p > threshold).sum()),
+                "n_zero_sd": int((p == 0).sum()),
+                "n_inf": int(np.isinf(p).sum()),
+            }
+        group_summary = (
+            pd.DataFrame.from_dict(rows, orient="index")
+            .rename_axis("group")
+            .sort_values("median_pct_std", ascending=False)
+        )
+        group_csv = csv_path.parent / f"{csv_path.stem}_{metric}_pct_std_by_group.csv"
+        group_summary.to_csv(group_csv)
+        print(f"Saved: {group_csv}")
+
+        plot_df = gdf[np.isfinite(gdf["pct_std"]) & (gdf["pct_std"] > 0)]
+        if plot_df.empty:
+            print(f"Skipping group plot for {metric}: no positive finite values")
+            continue
+
+        order = (
+            plot_df.groupby("group")["pct_std"]
+            .median()
+            .sort_values(ascending=True)
+            .index.tolist()  # highest median at the top
+        )
+        data = [plot_df.loc[plot_df["group"] == g, "pct_std"].to_numpy() for g in order]
+
+        ylabels = []
+        for g in order:
+            s = group_summary.loc[g]
+            extra = []
+            if s["n_zero_sd"]:
+                extra.append(f"{int(s['n_zero_sd'])}×0%")
+            if s["n_inf"]:
+                extra.append(f"{int(s['n_inf'])}×∞")
+            ylabels.append(
+                f"{g} (n={int(s['n'])}"
+                + (f"; {', '.join(extra)}" if extra else "")
+                + ")"
+            )
+
+        fig, ax = plt.subplots(figsize=(10, max(4, 0.35 * len(order) + 1.5)))
+        ax.boxplot(
+            data,
+            vert=False,
+            positions=range(len(order)),
+            widths=0.6,
+            showfliers=False,
+            patch_artist=True,
+            boxprops={"facecolor": "#4f8a8b", "alpha": 0.5},
+            medianprops={"color": "#b94a48", "linewidth": 1.5},
+        )
+        rng = np.random.default_rng(0)
+        for i, vals in enumerate(data):
+            ax.scatter(
+                vals,
+                i + rng.uniform(-0.2, 0.2, len(vals)),
+                s=8,
+                color="black",
+                alpha=0.5,
+                zorder=3,
+            )
+
+        ax.set_xscale("log")
+        ax.set_yticks(range(len(order)))
+        ax.set_yticklabels(ylabels, fontsize=8)
+        ax.axvline(
+            threshold,
+            color="black",
+            linestyle=":",
+            linewidth=1.5,
+            label=f"{threshold:g}% threshold",
+        )
+        ax.set_xlabel(f"{metric} SD as % of mean (across resamples, log scale)")
+        ax.set_title(f"{csv_path.stem}: {metric} variability by Mordred group")
+        ax.legend(loc="lower right")
+        ax.grid(axis="x", linestyle="--", alpha=0.35)
+        fig.tight_layout()
+
+        out = csv_path.parent / f"{csv_path.stem}_{metric}_pct_std_by_group.png"
+        fig.savefig(out, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        print(f"Saved: {out}")
