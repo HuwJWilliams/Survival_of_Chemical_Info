@@ -1201,7 +1201,7 @@ if run_7:
     csv_path = Path(
         "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/pred_mordred_tr_maccs/ridge/pred_mordred_tr_maccs.csv"
     )
-    metrics = ["RMSE"]  # any metric that has a matching *_std column
+    metrics = ["RMSE", "r2", "Pearson_"]  # any metric that has a matching *_std column
     task = "regression"
     bins = 50
     threshold = 5.0  # % SD above which a descriptor is saved to the CSV
