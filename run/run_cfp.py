@@ -72,7 +72,10 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--random-seed", type=int, default=None, help="Seed for reproducible splits and model fitting"
+    "--random-seed",
+    type=int,
+    default=None,
+    help="Seed for reproducible splits and model fitting",
 )
 
 parser.add_argument(
@@ -114,6 +117,20 @@ parser.add_argument(
     type=int,
     default=2500,
     help="Minimum number of samples to train models",
+)
+
+parser.add_argument(
+    "--target-n-jobs",
+    type=int,
+    default=10,
+    help="Number of targets trained in parallel (one core each)",
+)
+
+parser.add_argument(
+    "--recheck-task-type",
+    action="store_true",
+    help="With --skip-existing, re-run targets whose detected task type has changed "
+    "(slower on resumed runs)",
 )
 
 args = parser.parse_args()
@@ -209,7 +226,9 @@ target_df = loadAndCleanData(target, full_feats=full_feats, correlation_threshol
 common_idx = train_df.index.intersection(target_df.index)
 train_df, target_df = train_df.loc[common_idx], target_df.loc[common_idx]
 
-print(f"[Multi-Target {model_name}] mols={mols}, train={train}, test={target}, id={identifier}")
+print(
+    f"[Multi-Target {model_name}] mols={mols}, train={train}, test={target}, id={identifier}"
+)
 print(f"Train shape: {train_df.shape}, Test shape: {target_df.shape}")
 print(f"Save path: {save_path}")
 
@@ -233,4 +252,8 @@ model.trainMultiTargetModels(
     save_models=args.save_models,
     save_feat_imp=args.save_feat_imp,
     min_training_samples=args.minimum_targs,
+    inner_n_jobs=1,
+    outer_n_jobs=1,
+    target_n_jobs=args.target_n_jobs,
+    recheck_task_type=args.recheck_task_type,
 )

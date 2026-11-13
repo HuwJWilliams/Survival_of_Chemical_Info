@@ -7,6 +7,7 @@ import sys
 from sklearn.model_selection import KFold, GridSearchCV, StratifiedKFold
 import logging
 import joblib
+from joblib import Parallel, delayed
 import json
 import torch
 
@@ -310,6 +311,130 @@ class TL:
         return combined_data, expected_task_type
 
     # --- Model Training
+    def _train_one_target(
+        self,
+        target_column: str,
+        features_df: pd.DataFrame,
+        targets_df: pd.DataFrame,
+        existing_df: pd.DataFrame,
+        model_name: str,
+        hyper_params: dict | None,
+        skip_existing: bool,
+        n_resamples: int,
+        test_size: float,
+        cv_splits: int,
+        batch_size: int,
+        random_seed: int | None,
+        save_models: bool,
+        save_path: Path,
+        trim_by_percentile: bool,
+        percentile: float,
+        min_training_samples: int,
+        min_samples_per_class: int,
+        outer_n_jobs: int,
+        inner_n_jobs: int,
+    ) -> dict:
+        """Process and train one target. Returns a status dict for the parent.
+
+        Runs in a worker process when target_n_jobs != 1, so it must not write to
+        shared files. Log messages are returned rather than logged here, because
+        loky workers don't inherit this class's logger handlers.
+        """
+        try:
+            result = self.processInputData(
+                target_column=target_column,
+                target_df=targets_df,
+                feature_df=features_df,
+                remove_correlated_features=False,
+                trim_by_percentile=trim_by_percentile,
+                percentile=percentile,
+                min_training_samples=min_training_samples,
+                min_samples_per_class=min_samples_per_class,
+            )
+            if result is None:
+                return {
+                    "target": target_column,
+                    "status": "skipped",
+                    "message": f"Skipping {target_column}: failed data checks",
+                }
+
+            combined_df, expected_task_type = result
+
+            if expected_task_type not in MODEL_REGISTRY[model_name]:
+                return {
+                    "target": target_column,
+                    "status": "skipped",
+                    "message": f"Skipping {target_column}: {model_name} "
+                    f"does not support {expected_task_type}",
+                }
+
+            # Skip or rerun based on model and task type
+            if (
+                skip_existing
+                and not existing_df.empty
+                and {"model", "task_type"}.issubset(existing_df.columns)
+            ):
+                existing = existing_df.loc[
+                    (existing_df.index == target_column)
+                    & (existing_df["model"] == model_name)
+                ]
+                if (
+                    not existing.empty
+                    and (existing["task_type"] == expected_task_type).all()
+                ):
+                    return {
+                        "target": target_column,
+                        "status": "skipped",
+                        "message": f"Skipping {model_name}: {target_column} "
+                        f"(already processed as {expected_task_type})",
+                    }
+
+            model_class = MODEL_REGISTRY[model_name][expected_task_type]
+            task_config = TASK_CONFIG[expected_task_type]
+
+            model = model_class(
+                cv_function=task_config["cv_function"],
+                hp_search_function=GridSearchCV,
+                cv_kwargs={"n_splits": cv_splits, "shuffle": True},
+                hp_search_kwargs={"scoring": task_config["scoring"], "refit": True},
+                random_seed=random_seed,
+            )
+            (
+                _final_model,
+                _best_params,
+                aggregated_performance,
+                final_performance,
+                feat_importance_df,
+            ) = model.train(
+                n_resamples=n_resamples,
+                data=combined_df,
+                target_column=target_column,
+                hyperparameters=hyper_params,
+                test_size=test_size,
+                batch_size=batch_size,
+                outer_n_jobs=outer_n_jobs,
+                inner_n_jobs=inner_n_jobs,
+                save_final_model=save_models,
+                save_path=Path(save_path) / model_name / target_column,
+                final_model_name=f"{target_column}_{model_name}",
+            )
+            return {
+                "target": target_column,
+                "status": "trained",
+                "task_type": expected_task_type,
+                "aggregated_performance": aggregated_performance,
+                "final_performance": final_performance,
+                "feat_importance_df": feat_importance_df,
+                "message": "",
+            }
+
+        except Exception as e:
+            return {
+                "target": target_column,
+                "status": "error",
+                "message": f"Error training model for {target_column}: {e}",
+            }
+
     def trainMultiTargetModels(
         self,
         features_df: pd.DataFrame,
@@ -333,6 +458,8 @@ class TL:
         min_samples_per_class: int = 20,
         outer_n_jobs: int | None = None,
         inner_n_jobs: int | None = None,
+        target_n_jobs: int = 1,
+        recheck_task_type: bool = False,
     ) -> pd.DataFrame:
         """
         Train ML models for multiple target columns using logging.
@@ -341,12 +468,30 @@ class TL:
         rather than skipping the target entirely. If dropping small classes reduces
         the number of remaining classes to 2, the task falls back to binary
         classification. If fewer than 2 classes remain the target is skipped.
+
+        Parallelism
+        -----------
+        target_n_jobs : int
+            Number of targets trained concurrently (one worker per target). When
+            != 1, each worker trains single-threaded (outer/inner n_jobs forced to
+            1) to avoid oversubscription. When == 1, outer_n_jobs / inner_n_jobs
+            are passed through to ModelBase.train as before.
+        recheck_task_type : bool
+            If False (default) and skip_existing is True, targets already present
+            for this model are skipped up front, before any data processing. If
+            True, the skip decision is made per target after task detection, so a
+            changed task type triggers a re-run, at the cost of processing every
+            target's data again on resumed runs.
         """
 
         total_performance_df = pd.DataFrame()
 
         outer_n_jobs = 1 if outer_n_jobs is None else outer_n_jobs
         inner_n_jobs = 1 if inner_n_jobs is None else inner_n_jobs
+
+        if target_n_jobs != 1:
+            # Parallelism is over targets; keep each worker single-threaded.
+            outer_n_jobs, inner_n_jobs = 1, 1
 
         self.logger.debug(f"Existing performance CSV path: {existing_performance_csv}")
 
@@ -371,96 +516,71 @@ class TL:
         output_csv = save_path / output_csv
         combined_feat_importance_csv = save_path / "all_feature_importance.csv"
 
-        for i, target_column in enumerate(targets_df.columns):
-            result = self.processInputData(
+        # Fast pre-skip: avoid dispatching (and processing data for) finished targets
+        already_done = set()
+        if (
+            skip_existing
+            and not recheck_task_type
+            and not total_performance_df.empty
+            and "model" in total_performance_df.columns
+        ):
+            already_done = set(
+                total_performance_df.index[total_performance_df["model"] == model_name]
+            )
+            self.logger.info(
+                f"Skipping {len(already_done)} targets already processed for {model_name}"
+            )
+
+        # Only pass the existing results to workers when they need them
+        worker_existing_df = (
+            total_performance_df if recheck_task_type else pd.DataFrame()
+        )
+
+        jobs = (
+            delayed(self._train_one_target)(
                 target_column=target_column,
-                target_df=targets_df,
-                feature_df=features_df,
-                remove_correlated_features=False,
+                features_df=features_df,
+                targets_df=targets_df,
+                existing_df=worker_existing_df,
+                model_name=model_name,
+                hyper_params=hyper_params,
+                skip_existing=skip_existing,
+                n_resamples=n_resamples,
+                test_size=test_size,
+                cv_splits=cv_splits,
+                batch_size=batch_size,
+                random_seed=random_seed,
+                save_models=save_models,
+                save_path=save_path,
                 trim_by_percentile=trim_by_percentile,
                 percentile=percentile,
                 min_training_samples=min_training_samples,
                 min_samples_per_class=min_samples_per_class,
+                outer_n_jobs=outer_n_jobs,
+                inner_n_jobs=inner_n_jobs,
             )
+            for target_column in targets_df.columns
+            if target_column not in already_done
+        )
 
-            if result is None:
+        # Results are yielded as each target finishes, so the parent is the only
+        # process that writes CSVs, and progress is saved after every target.
+        for res in Parallel(n_jobs=target_n_jobs, return_as="generator_unordered")(
+            jobs
+        ):
+            target_column = res["target"]
+
+            if res["status"] == "error":
+                self.logger.error(f"  {res['message']}")
+                continue
+            if res["status"] == "skipped":
+                self.logger.info(res["message"])
                 continue
 
-            combined_df, expected_task_type = result
-
-            if expected_task_type not in MODEL_REGISTRY[model_name]:
-                self.logger.info(
-                    f"Skipping {target_column}: {model_name} does not support {expected_task_type}"
-                )
-                continue
-
-            model_class = MODEL_REGISTRY[model_name][expected_task_type]
-            task_config = TASK_CONFIG[expected_task_type]
-
-            # ── Skip or rerun based on model and task type ──────────────
-            if skip_existing and not total_performance_df.empty:
-
-                if {"model", "task_type"}.issubset(total_performance_df.columns):
-
-                    existing = total_performance_df.loc[
-                        (total_performance_df.index == target_column)
-                        & (total_performance_df["model"] == model_name)
-                    ]
-
-                    if not existing.empty:
-
-                        if (existing["task_type"] == expected_task_type).all():
-                            self.logger.info(
-                                f"Skipping {model_name}: {target_column} "
-                                f"(already processed as {expected_task_type})"
-                            )
-                            continue
-
-                        self.logger.info(
-                            f"Re-running {model_name}: {target_column} "
-                            f"because the previously saved task type differs "
-                            f"from {expected_task_type}"
-                        )
-
-            try:
-                model = model_class(
-                    cv_function=task_config["cv_function"],
-                    hp_search_function=GridSearchCV,
-                    cv_kwargs={
-                        "n_splits": cv_splits,
-                        "shuffle": True,
-                    },
-                    hp_search_kwargs={
-                        "scoring": task_config["scoring"],
-                        "refit": True,
-                    },
-                    random_seed=random_seed,
-                )
-                (
-                    final_model,
-                    best_params,
-                    aggregated_performance,
-                    final_performance,
-                    feat_importance_df,
-                ) = model.train(
-                    n_resamples=n_resamples,
-                    data=combined_df,
-                    target_column=target_column,
-                    hyperparameters=hyper_params,
-                    test_size=test_size,
-                    batch_size=batch_size,
-                    outer_n_jobs=outer_n_jobs,
-                    inner_n_jobs=inner_n_jobs,
-                    save_final_model=save_models,
-                    save_path=save_path / model_name / target_column,
-                    final_model_name=f"{target_column}_{model_name}",
-                )
-
-            except Exception as e:
-                self.logger.error(
-                    f"  Error training model for {target_column}: {str(e)}"
-                )
-                continue
+            expected_task_type = res["task_type"]
+            aggregated_performance = res["aggregated_performance"]
+            final_performance = res["final_performance"]
+            feat_importance_df = res["feat_importance_df"]
 
             #  Feature importance
             if (
