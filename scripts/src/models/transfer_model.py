@@ -45,6 +45,7 @@ MODEL_REGISTRY = {
         "regression": RidgeRegressor,
     },
     "svr": {"regression": SVRegressor},
+    "mlp": {"regression": MLPRegressor}
 }
 
 from sklearn.model_selection import KFold, StratifiedKFold
