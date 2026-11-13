@@ -1199,8 +1199,7 @@ if run_7:
         return groups
 
     csv_path = Path(
-        "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/"
-        "ridge/pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv"
+        "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/pred_mordred_tr_maccs/ridge/pred_mordred_tr_maccs.csv"
     )
     metrics = ["RMSE"]  # any metric that has a matching *_std column
     task = "regression"
