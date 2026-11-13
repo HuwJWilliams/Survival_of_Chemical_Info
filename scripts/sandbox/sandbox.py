@@ -1201,7 +1201,7 @@ if run_7:
     csv_path = Path(
         "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/pred_mordred_tr_maccs/ridge/pred_mordred_tr_maccs.csv"
     )
-    metrics = ["RMSE", "r2", "Pearson_"]  # any metric that has a matching *_std column
+    metrics = ["RMSE", "r2", "Pearson_r"]  # any metric that has a matching *_std column
     task = "regression"
     bins = 50
     threshold = 5.0  # % SD above which a descriptor is saved to the CSV
@@ -1345,9 +1345,9 @@ if run_7:
             print(f"Saved: {out}")
 
         # ---- Histogram on a linear scale (full range + zoomed) ----
-        zoom_pct = 95                                   # right panel shows values up to this percentile
+        zoom_pct = 95  # right panel shows values up to this percentile
         pct_all = res["pct_std"]
-        finite_pct = pct_all[np.isfinite(pct_all)]      # includes 0% SD descriptors
+        finite_pct = pct_all[np.isfinite(pct_all)]  # includes 0% SD descriptors
         n_inf_lin = int(np.isinf(pct_all).sum())
 
         if finite_pct.empty:
@@ -1359,12 +1359,24 @@ if run_7:
 
             fig, (ax_full, ax_zoom) = plt.subplots(1, 2, figsize=(14, 5))
 
-            ax_full.hist(finite_pct, bins=bins, color="#4f8a8b",
-                         edgecolor="black", linewidth=0.6, alpha=0.85)
+            ax_full.hist(
+                finite_pct,
+                bins=bins,
+                color="#4f8a8b",
+                edgecolor="black",
+                linewidth=0.6,
+                alpha=0.85,
+            )
             ax_full.set_title(f"All finite values (n={len(finite_pct)})")
 
-            ax_zoom.hist(zoomed, bins=bins, color="#4f8a8b",
-                         edgecolor="black", linewidth=0.6, alpha=0.85)
+            ax_zoom.hist(
+                zoomed,
+                bins=bins,
+                color="#4f8a8b",
+                edgecolor="black",
+                linewidth=0.6,
+                alpha=0.85,
+            )
             ax_zoom.set_title(
                 f"Zoomed to {zoom_pct}th percentile (≤ {zoom_max:.1f}%; "
                 f"{len(finite_pct) - len(zoomed)} values not shown)"
@@ -1372,11 +1384,21 @@ if run_7:
 
             for ax, xmax in ((ax_full, finite_pct.max()), (ax_zoom, zoom_max)):
                 if threshold <= xmax:
-                    ax.axvline(threshold, color="black", linestyle=":", linewidth=1.5,
-                               label=f"{threshold:g}% threshold")
+                    ax.axvline(
+                        threshold,
+                        color="black",
+                        linestyle=":",
+                        linewidth=1.5,
+                        label=f"{threshold:g}% threshold",
+                    )
                 if median_lin <= xmax:
-                    ax.axvline(median_lin, color="#b94a48", linestyle="--", linewidth=1.5,
-                               label=f"Median = {median_lin:.2f}%")
+                    ax.axvline(
+                        median_lin,
+                        color="#b94a48",
+                        linestyle="--",
+                        linewidth=1.5,
+                        label=f"Median = {median_lin:.2f}%",
+                    )
                 ax.set_xlabel(f"{metric} SD as % of mean (across resamples)")
                 ax.set_ylabel("Number of descriptors")
                 ax.grid(axis="y", linestyle="--", alpha=0.35)
@@ -1419,7 +1441,7 @@ if run_7:
         group_summary = (
             pd.DataFrame.from_dict(rows, orient="index")
             .rename_axis("group")
-            .sort_values("median_pct_std", ascending=False)
+            .sort_values("mean_pct_std", ascending=False)
         )
         group_csv = csv_path.parent / f"{csv_path.stem}_{metric}_pct_std_by_group.csv"
         group_summary.to_csv(group_csv)
@@ -1432,9 +1454,9 @@ if run_7:
 
         order = (
             plot_df.groupby("group")["pct_std"]
-            .median()
+            .mean()
             .sort_values(ascending=True)
-            .index.tolist()  # highest median at the top
+            .index.tolist()
         )
         data = [plot_df.loc[plot_df["group"] == g, "pct_std"].to_numpy() for g in order]
 
