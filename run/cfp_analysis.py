@@ -15,7 +15,7 @@ sys.path.insert(0, str(RUN_DIR / "config"))
 sys.path.insert(0, str(RUN_DIR / "fns"))
 
 from config import SRC_DIR, PATHING_JSON_PATH
-from cfp_analysis_fns import *
+from fns.cfp_analysis_fns import *
 
 sys.path.insert(0, str(SRC_DIR / "pathing"))
 from get_paths import getPaths
@@ -185,7 +185,9 @@ else:
             model_name=args.model_name,
         )
 
-        analysis_dir = exp_dir / "analysis" / args.model_name if args.model_name else exp_dir
+        analysis_dir = (
+            exp_dir / "analysis" / args.model_name if args.model_name else exp_dir
+        )
 
         feature_source = args.property or "all"
         pred_ft_df_path = Path(FULL_PATHING["full_features"][feature_source][pred])

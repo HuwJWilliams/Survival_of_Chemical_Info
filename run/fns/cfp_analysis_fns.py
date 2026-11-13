@@ -326,6 +326,7 @@ def plotFullTaskBar(
     plot_dir: str | Path,
     exp_name: str,
     dpi: int = 1200,
+    show_std: bool = False,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -359,17 +360,39 @@ def plotFullTaskBar(
 
         task_df = task_df.sort_values(metric_col, ascending=False)
 
+        # Optional error bars from the across-resample standard deviation
+        yerr = None
+        if show_std:
+            std_col = f"{metric_col}_std"
+            if std_col in task_df.columns:
+                std_vals = pd.to_numeric(task_df[std_col], errors="coerce")
+                if std_vals.notna().any():  # all NaN when n_resamples == 1
+                    yerr = std_vals.fillna(0).to_numpy()
+                else:
+                    print(f"'{std_col}' is all NaN; plotting without error bars.")
+            else:
+                print(f"No '{std_col}' column found; plotting without error bars.")
+
         title = formatCFPTitle(exp_name, metric_col)
 
         plt.figure(figsize=(12, 6))
-        plt.bar(task_df.index.astype(str), task_df[metric_col])
+        plt.bar(
+            task_df.index.astype(str),
+            task_df[metric_col],
+            yerr=yerr,
+            capsize=2 if yerr is not None else 0,
+            error_kw={"elinewidth": 0.8, "ecolor": "black"},
+        )
         plt.xlabel("Feature")
-        plt.ylabel(metric_col)
+        plt.ylabel(f"{metric_col} (± SD)" if yerr is not None else metric_col)
         plt.title(title)
         plt.xticks(rotation=45, ha="right")
         plt.tight_layout()
 
-        save_path = plot_dir / f"{exp_name}_full_task_bar_{task_name}_{metric_col}.png"
+        suffix = "_std" if yerr is not None else ""
+        save_path = (
+            plot_dir / f"{exp_name}_full_task_bar_{task_name}_{metric_col}{suffix}.png"
+        )
         plt.savefig(save_path, dpi=dpi, bbox_inches="tight")
         plt.close()
 

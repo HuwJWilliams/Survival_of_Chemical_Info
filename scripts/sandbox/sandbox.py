@@ -1175,3 +1175,11 @@ if run_6:
         plot_count=ROC_PLOT_COUNT,
         random_seed=ROC_RANDOM_SEED,
     )
+
+
+run_7=True
+if run_7:
+
+    df = "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/ridge/pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv"
+
+    
