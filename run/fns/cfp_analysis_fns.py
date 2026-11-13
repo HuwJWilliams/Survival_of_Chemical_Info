@@ -326,7 +326,7 @@ def plotFullTaskBar(
     plot_dir: str | Path,
     exp_name: str,
     dpi: int = 1200,
-    show_std: bool = False,
+    show_std: bool = True,
 ):
     plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
