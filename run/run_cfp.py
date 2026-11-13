@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 from glob import glob
 import json
+import numpy as np
 
 # %% ===== Project Imports & Pathing Setup =====
 RUN_DIR = Path(__file__).resolve().parent
@@ -115,7 +116,7 @@ parser.add_argument(
 parser.add_argument(
     "--minimum-targs",
     type=int,
-    default=2500,
+    default=1000,
     help="Minimum number of samples to train models",
 )
 
@@ -132,6 +133,8 @@ parser.add_argument(
     help="With --skip-existing, re-run targets whose detected task type has changed "
     "(slower on resumed runs)",
 )
+
+parser.add_argument("--trimmed-data-size", default=None, help="Final size of data")
 
 args = parser.parse_args()
 train = args.train.lower()
@@ -224,7 +227,15 @@ train_df = loadAndCleanData(train, full_feats=full_feats, correlation_threshold=
 target_df = loadAndCleanData(target, full_feats=full_feats, correlation_threshold=None)
 
 common_idx = train_df.index.intersection(target_df.index)
+
+if args.trimmed_data_size is not None:
+    # Shuffle the shared IDs, then keep the first N, so both frames get the same rows
+    rng = np.random.default_rng(args.random_seed)
+    shuffled_idx = rng.permutation(common_idx.to_numpy())
+    common_idx = pd.Index(shuffled_idx[: args.trimmed_data_size], name=common_idx.name)
+
 train_df, target_df = train_df.loc[common_idx], target_df.loc[common_idx]
+
 
 print(
     f"[Multi-Target {model_name}] mols={mols}, train={train}, test={target}, id={identifier}"

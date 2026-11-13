@@ -401,7 +401,7 @@ class TL:
             )
             (
                 _final_model,
-                _best_params,
+                best_params,
                 aggregated_performance,
                 final_performance,
                 feat_importance_df,
@@ -423,6 +423,7 @@ class TL:
                 "status": "trained",
                 "task_type": expected_task_type,
                 "aggregated_performance": aggregated_performance,
+                "best_params": best_params,
                 "final_performance": final_performance,
                 "feat_importance_df": feat_importance_df,
                 "message": "",
@@ -515,6 +516,7 @@ class TL:
         save_path.mkdir(parents=True, exist_ok=True)
         output_csv = save_path / output_csv
         combined_feat_importance_csv = save_path / "all_feature_importance.csv"
+        best_params_csv = save_path / "best_params.csv"
 
         # Fast pre-skip: avoid dispatching (and processing data for) finished targets
         already_done = set()
@@ -581,6 +583,24 @@ class TL:
             aggregated_performance = res["aggregated_performance"]
             final_performance = res["final_performance"]
             feat_importance_df = res["feat_importance_df"]
+
+            best_params = res["best_params"]
+
+            # Append best params (parent process is the only writer, so no races)
+            bp_row = pd.DataFrame(
+                [
+                    {
+                        "feature_name": target_column,
+                        "best_params": json.dumps(best_params, default=str),
+                    }
+                ]
+            )
+            if best_params_csv.exists():
+                # Drop any stale row for this target so re-runs don't duplicate it
+                prev = pd.read_csv(best_params_csv)
+                prev = prev.loc[prev["feature_name"] != target_column]
+                bp_row = pd.concat([prev, bp_row], ignore_index=True)
+            bp_row.to_csv(best_params_csv, index=False)
 
             #  Feature importance
             if (
