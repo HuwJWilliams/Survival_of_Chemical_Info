@@ -669,6 +669,7 @@ class Visualise:
         wrap_width: int = 14,
         rotate_labels: bool = True,
         metadata: dict = {},
+        error_col: str | None = None,
     ):
         if group_name not in group_map:
             raise ValueError(f"Group '{group_name}' not found in group_map")
@@ -712,6 +713,19 @@ class Visualise:
         member_df[value_col] = pd.to_numeric(member_df[value_col], errors="coerce")
         member_df = member_df.sort_values(by=value_col, ascending=False)
 
+        # Optional error bars (SD across resamples), taken after sorting so they
+        # stay aligned with the bars
+        yerr = None
+        if error_col is not None:
+            if error_col in member_df.columns:
+                std_vals = pd.to_numeric(member_df[error_col], errors="coerce")
+                if std_vals.notna().any():  # all NaN when n_resamples == 1
+                    yerr = std_vals.fillna(0).to_numpy(dtype=float)
+                else:
+                    print(f"'{error_col}' is all NaN; plotting without error bars.")
+            else:
+                print(f"No '{error_col}' column found; plotting without error bars.")
+
         values = member_df[value_col].to_numpy(dtype=float)
         labels = member_df.index.astype(str).tolist()
         if figsize is None:
@@ -737,6 +751,9 @@ class Visualise:
         ax.bar(
             x_positions,
             values,
+            yerr=yerr,
+            capsize=3 if yerr is not None else 0,
+            error_kw={"elinewidth": 1.0, "ecolor": "black"},
             color=bar_colours,
             edgecolor="black",
             linewidth=0.8,
@@ -754,12 +771,19 @@ class Visualise:
             ha=ha,
         )
 
-        ax.set_ylabel(value_col, fontsize=label_fontsize, fontweight="bold")
+        ax.set_ylabel(
+            f"{value_col} (± SD)" if yerr is not None else value_col,
+            fontsize=label_fontsize,
+            fontweight="bold",
+        )
         ax.tick_params(axis="y", labelsize=tick_fontsize)
         ax.set_axisbelow(True)
         ax.grid(axis="y", linestyle="--", alpha=0.35)
 
-        ax.set_ylim(0.0, 1.1)
+        if yerr is not None:
+            ax.set_ylim(0.0, max(1.1, float(np.max(values + yerr)) * 1.05))
+        else:
+            ax.set_ylim(0.0, 1.1)
 
         plot_title = title or f"{group_name} member performance"
         ax.set_title(plot_title, fontsize=title_fontsize, fontweight="bold", pad=18)

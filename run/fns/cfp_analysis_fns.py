@@ -312,6 +312,7 @@ def plotGroupMemberBars(
                     f"{exp_name}_{group_name}_{pred}_bar_"
                     f"{task_cfg['member_suffix']}"
                 ),
+                error_col=None,
             )
 
         except ValueError as e:
