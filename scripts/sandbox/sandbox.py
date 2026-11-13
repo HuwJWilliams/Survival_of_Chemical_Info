@@ -1344,6 +1344,55 @@ if run_7:
             plt.close(fig)
             print(f"Saved: {out}")
 
+        # ---- Histogram on a linear scale (full range + zoomed) ----
+        zoom_pct = 95                                   # right panel shows values up to this percentile
+        pct_all = res["pct_std"]
+        finite_pct = pct_all[np.isfinite(pct_all)]      # includes 0% SD descriptors
+        n_inf_lin = int(np.isinf(pct_all).sum())
+
+        if finite_pct.empty:
+            print(f"Skipping linear histogram for {metric}: no finite values")
+        else:
+            median_lin = finite_pct.median()
+            zoom_max = np.percentile(finite_pct, zoom_pct)
+            zoomed = finite_pct[finite_pct <= zoom_max]
+
+            fig, (ax_full, ax_zoom) = plt.subplots(1, 2, figsize=(14, 5))
+
+            ax_full.hist(finite_pct, bins=bins, color="#4f8a8b",
+                         edgecolor="black", linewidth=0.6, alpha=0.85)
+            ax_full.set_title(f"All finite values (n={len(finite_pct)})")
+
+            ax_zoom.hist(zoomed, bins=bins, color="#4f8a8b",
+                         edgecolor="black", linewidth=0.6, alpha=0.85)
+            ax_zoom.set_title(
+                f"Zoomed to {zoom_pct}th percentile (≤ {zoom_max:.1f}%; "
+                f"{len(finite_pct) - len(zoomed)} values not shown)"
+            )
+
+            for ax, xmax in ((ax_full, finite_pct.max()), (ax_zoom, zoom_max)):
+                if threshold <= xmax:
+                    ax.axvline(threshold, color="black", linestyle=":", linewidth=1.5,
+                               label=f"{threshold:g}% threshold")
+                if median_lin <= xmax:
+                    ax.axvline(median_lin, color="#b94a48", linestyle="--", linewidth=1.5,
+                               label=f"Median = {median_lin:.2f}%")
+                ax.set_xlabel(f"{metric} SD as % of mean (across resamples)")
+                ax.set_ylabel("Number of descriptors")
+                ax.grid(axis="y", linestyle="--", alpha=0.35)
+                ax.legend()
+
+            suptitle = f"{csv_path.stem}: {metric} variability (linear scale)"
+            if n_inf_lin:
+                suptitle += f"\n{n_inf_lin} descriptors with zero mean (∞%) not shown"
+            fig.suptitle(suptitle)
+            fig.tight_layout()
+
+            out = csv_path.parent / f"{csv_path.stem}_{metric}_pct_std_hist_linear.png"
+            fig.savefig(out, dpi=300, bbox_inches="tight")
+            plt.close(fig)
+            print(f"Saved: {out}")
+
         # ---- SD % by Mordred descriptor group ----
         gdf = res.copy()
         gdf["group"] = [desc_to_group.get(d, "Unmapped") for d in gdf.index]
