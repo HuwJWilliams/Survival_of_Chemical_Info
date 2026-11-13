@@ -8,7 +8,7 @@ run_2 = False  # Average descriptor performance
 run_3 = False  # RDKit feature importance for Mordred autocorrelation
 run_4 = False  # Atomic-mass autocorrelation distributions
 run_5 = False  # Fine-tuned vs ID-trimmed base predictions
-run_6 = True  # Classification ROC/AUC curves
+run_6 = False  # Classification ROC/AUC curves
 
 # Try binary descriptors in random order until this many plots succeed.
 ROC_PLOT_COUNT = 5
