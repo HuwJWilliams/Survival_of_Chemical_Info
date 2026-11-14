@@ -233,7 +233,6 @@ if args.trimmed_data_size is not None:
     rng = np.random.default_rng(args.random_seed)
     shuffled_idx = rng.permutation(common_idx.to_numpy())
     common_idx = pd.Index(shuffled_idx[: args.trimmed_data_size], name=common_idx.name)
-
 train_df, target_df = train_df.loc[common_idx], target_df.loc[common_idx]
 
 
