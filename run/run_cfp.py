@@ -134,7 +134,9 @@ parser.add_argument(
     "(slower on resumed runs)",
 )
 
-parser.add_argument("--trimmed-data-size", default=None, help="Final size of data")
+parser.add_argument(
+    "--trimmed-data-size", default=None, type=int, help="Final size of data"
+)
 
 args = parser.parse_args()
 train = args.train.lower()
