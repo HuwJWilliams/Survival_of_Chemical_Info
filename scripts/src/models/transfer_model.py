@@ -38,14 +38,14 @@ LOG_LEVEL = logging.DEBUG
 MODEL_REGISTRY = {
     "random_forest": {
         "regression": RFRegressor,
-        "binary_classification": RFClassifier,
-        "multiclass_classification": RFClassifier,
+        # "binary_classification": RFClassifier,
+        # "multiclass_classification": RFClassifier,
     },
     "ridge": {
         "regression": RidgeRegressor,
     },
     "svr": {"regression": SVRegressor},
-    "mlp": {"regression": MLPRegressor}
+    "mlp": {"regression": MLPRegressor},
 }
 
 from sklearn.model_selection import KFold, StratifiedKFold
