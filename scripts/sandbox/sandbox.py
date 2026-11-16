@@ -9,6 +9,8 @@ run_3 = False  # RDKit feature importance for Mordred autocorrelation
 run_4 = False  # Atomic-mass autocorrelation distributions
 run_5 = False  # Fine-tuned vs ID-trimmed base predictions
 run_6 = False  # Classification ROC/AUC curves
+run_7 = False
+run_8 = True
 
 # Try binary descriptors in random order until this many plots succeed.
 ROC_PLOT_COUNT = 5
@@ -1176,7 +1178,7 @@ if run_6:
         random_seed=ROC_RANDOM_SEED,
     )
 
-run_7 = True
+
 if run_7:
     import numpy as np
     import pandas as pd
@@ -1516,3 +1518,5 @@ if run_7:
         fig.savefig(out, dpi=300, bbox_inches="tight")
         plt.close(fig)
         print(f"Saved: {out}")
+
+
