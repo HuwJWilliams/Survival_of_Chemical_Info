@@ -1543,23 +1543,23 @@ if run_8:
     ]
 
     # paths = [
-        # "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
-        # "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
-        # "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
-        # "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
-        # "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
-        # "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
-        # "pred_mordred_tr_chemberta/pred_mordred_tr_chemberta.csv",
-        # "pred_mordred_tr_chembertasey/pred_mordred_tr_chembertasey.csv",
-        # "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
-        # "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
-        # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
-        # "pred_mordred_tr_chemberta-dc/analysis/random_forest/regression_group_perf.csv",
-        # "pred_mordred_tr_chemberta-sey/analysis/random_forest/regression_group_perf.csv",
-        # "pred_mordred_tr_molformer-ibm/analysis/random_forest/regression_group_perf.csv",
-        # "pred_mordred_tr_molformer-dc/analysis/random_forest/regression_group_perf.csv",
-        # "pred_mordred_tr_selformer/analysis/random_forest/regression_group_perf.csv",
-        # "pred_mordred_avg_transformers/group_performance_by_task.csv"
+    # "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
+    # "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
+    # "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
+    # "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
+    # "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
+    # "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
+    # "pred_mordred_tr_chemberta/pred_mordred_tr_chemberta.csv",
+    # "pred_mordred_tr_chembertasey/pred_mordred_tr_chembertasey.csv",
+    # "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
+    # "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
+    # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
+    # "pred_mordred_tr_chemberta-dc/analysis/random_forest/regression_group_perf.csv",
+    # "pred_mordred_tr_chemberta-sey/analysis/random_forest/regression_group_perf.csv",
+    # "pred_mordred_tr_molformer-ibm/analysis/random_forest/regression_group_perf.csv",
+    # "pred_mordred_tr_molformer-dc/analysis/random_forest/regression_group_perf.csv",
+    # "pred_mordred_tr_selformer/analysis/random_forest/regression_group_perf.csv",
+    # "pred_mordred_avg_transformers/group_performance_by_task.csv"
     # ]
 
     # groups = [
@@ -1578,12 +1578,12 @@ if run_8:
     for path in paths:
         print(path)
         df = pd.read_csv(std_path + path, index_col=0)
-        df = df[df["task_type"]=="regression"]
-        print(df.)
+        df = df[df["task_type"] == "regression"]
+        print(len(df))
         # mean_r2 = df["r2"].mean()
         # mean_pear = df["Pearson_r"].mean()
 
-        filt_df = df.loc[df.index.str.startswith("FpDensity", na=False)].copy()
+        # filt_df = df.loc[df.index.str.startswith("FpDensity", na=False)].copy()
         # mean_r2 = filt_df["r2"].mean()
         # mean_pear = filt_df["Pearson_r"].mean()
 
@@ -1609,7 +1609,8 @@ if run_9:
 
     # Accept common mean-column names, but never use a precomputed SD column.
     metric_columns = [
-        col for col in ("avg_Pearson_r", "Pearson_r_mean", "mean_Pearson_r", "Pearson_r")
+        col
+        for col in ("avg_Pearson_r", "Pearson_r_mean", "mean_Pearson_r", "Pearson_r")
         if col in df.columns
     ]
     if len(metric_columns) != 1:
@@ -1630,14 +1631,18 @@ if run_9:
     moe_df = moe_df.sort_values(metric, ascending=False, na_position="last")
     print("\nMoeType descriptors excluding LabuteASA, highest to lowest Pearson r:")
     print(moe_df.to_string())
-    values = pd.to_numeric(
-        df.loc[moe_members, metric], errors="coerce"
-    ).replace([np.inf, -np.inf], np.nan).dropna()
+    values = (
+        pd.to_numeric(df.loc[moe_members, metric], errors="coerce")
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()
+    )
     if len(values) < 2:
         raise ValueError(f"Need at least two finite MoeType values in {csv_path}")
 
     print(f"\nSource: {csv_path}\nMetric: {metric}")
-    print("MoeType excluding LabuteASA: sample SD across descriptor mean Pearson r values")
+    print(
+        "MoeType excluding LabuteASA: sample SD across descriptor mean Pearson r values"
+    )
     print(f"Descriptors: {len(values)}")
     print(f"Mean Pearson r: {values.mean():.6f}")
     print(f"SD Pearson r: {values.std(ddof=1):.6f}")
