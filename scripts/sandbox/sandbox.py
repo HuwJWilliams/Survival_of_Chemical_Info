@@ -1523,12 +1523,24 @@ if run_7:
 if run_8:
     import numpy as np
     import pandas as pd
-    path = "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_rdkit/"
-    file = "pred_mordred_tr_rdkit.csv"
 
-    df = pd.read_csv(path + file)
-    mean_r2 = df["r2"].mean()
-    mean_pear = df["Pearson_r"].mean()
+    std_path = "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/"
+    paths = [
+        "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
+        "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
+        "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
+        "pred_mordred_tr_chemberta/pred_mordred_tr_chemberta.csv",
+        "pred_mordred_tr_chembertasey/pred_mordred_tr_chembertasey.csv",
+        "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
+        "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
+        "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
+    ]
 
-    print(f"r2: {mean_r2}")
-    print(f"pear: {mean_pear}")
+    for path in paths:
+        print(path)
+        df = pd.read_csv(std_path + path)
+        mean_r2 = df["r2"].mean()
+        mean_pear = df["Pearson_r"].mean()
+
+        print(f"r2: {mean_r2}")
+        print(f"pear: {mean_pear}")
