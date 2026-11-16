@@ -1526,22 +1526,26 @@ if run_8:
 
     std_path = "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/"
     paths = [
-        "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
+        # "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
         "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
-        "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
-        "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
-        "pred_mordred_tr_chemberta/pred_mordred_tr_chemberta.csv",
-        "pred_mordred_tr_chembertasey/pred_mordred_tr_chembertasey.csv",
-        "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
-        "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
-        "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
+        # "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
+        # "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
+        # "pred_mordred_tr_chemberta/pred_mordred_tr_chemberta.csv",
+        # "pred_mordred_tr_chembertasey/pred_mordred_tr_chembertasey.csv",
+        # "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
+        # "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
+        # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
     ]
 
     for path in paths:
         print(path)
-        df = pd.read_csv(std_path + path)
-        mean_r2 = df["r2"].mean()
-        mean_pear = df["Pearson_r"].mean()
+        df = pd.read_csv(std_path + path, index_col=0)
+        # mean_r2 = df["r2"].mean()
+        # mean_pear = df["Pearson_r"].mean()
 
-        print(f"r2: {mean_r2}")
-        print(f"pear: {mean_pear}")
+        # print(f"r2: {mean_r2}")
+        # print(f"pear: {mean_pear}")
+
+        ats_df = df.loc[df.index.str.startswith("ATS", na=False)].copy()        
+        mean_r2 = ats_df["r2"].mean()
+        mean_pear = ats_df["Pearson_r"].mean()
