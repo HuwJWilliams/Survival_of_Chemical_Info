@@ -1527,8 +1527,8 @@ if run_8:
     std_path = "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/"
     paths = [
         # "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
-        "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
-        "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
+        # "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
+        # "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
         # "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
         # "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
         # "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
@@ -1539,15 +1539,67 @@ if run_8:
         # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
     ]
 
+    paths = [
+        # "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
+        # "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
+        # "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
+        # "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
+        # "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
+        # "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
+        # "pred_mordred_tr_chemberta/pred_mordred_tr_chemberta.csv",
+        # "pred_mordred_tr_chembertasey/pred_mordred_tr_chembertasey.csv",
+        # "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
+        # "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
+        # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
+        "pred_mordred_tr_chemberta/regression_group_perf.csv",
+        "pred_mordred_tr_chembertasey/regression_group_perf.csv",
+        "pred_mordred_tr_molformer/regression_group_perf.csv",
+        "pred_mordred_tr_molformer-c3-1b/regression_group_perf.csv",
+        "pred_mordred_tr_selformer/regression_group_perf.csv",
+    ]
+
+    groups = [
+        "AcidBase",
+        "Autocorrelation",
+        "BCUT",
+        "TopologicalIndex",
+        "GeometricalIndex",
+        "MoeType",
+        "MoRSE",
+        "MolecularDistanceEdge",
+        "PBF",
+        "RotatableBond",
+        "EState",
+    ]
+    # for path in paths:
+    #     print(path)
+    #     df = pd.read_csv(std_path + path, index_col=0)
+    #     # mean_r2 = df["r2"].mean()
+    #     # mean_pear = df["Pearson_r"].mean()
+
+    #     filt_df = df.loc[df.index.str.startswith("FpDensity", na=False)].copy()
+    #     mean_r2 = filt_df["r2"].mean()
+    #     mean_pear = filt_df["Pearson_r"].mean()
+
+    #     print(f"r2: {mean_r2}")
+    #     print(f"pear: {mean_pear}")
+
+    from pathlib import Path
+
+    import pandas as pd
+
+    metrics = ["avg_Pearson_r", "avg_r2"]
+    group_results = []
+
     for path in paths:
-        print(path)
-        df = pd.read_csv(std_path + path, index_col=0)
-        # mean_r2 = df["r2"].mean()
-        # mean_pear = df["Pearson_r"].mean()
+        df = pd.read_csv(Path(std_path) / path, index_col=0)
+        performance = df.loc[:, metrics].reindex(groups)
+        group_results.append(performance)
 
-        filt_df = df.loc[df.index.str.startswith("FpDensity", na=False)].copy()
-        mean_r2 = filt_df["r2"].mean()
-        mean_pear = filt_df["Pearson_r"].mean()
+        print(f"\n{path}")
+        print(performance.to_string(float_format="{:.6f}".format))
 
-        print(f"r2: {mean_r2}")
-        print(f"pear: {mean_pear}")
+    overall_mean = pd.concat(group_results).mean()
+
+    print("\nOverall mean")
+    print(overall_mean.to_string(float_format="{:.6f}".format))
