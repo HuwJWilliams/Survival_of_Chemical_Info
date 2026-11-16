@@ -182,6 +182,7 @@ def getTaskGroupPerf(
     excl_cols: list[str],
     save_dir: str | Path,
 ):
+    """Recalculate task summaries from current results and overwrite saved CSVs."""
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -191,6 +192,11 @@ def getTaskGroupPerf(
         metrics = [
             metric for metric in task_cfg["group_metrics"] if metric in df.columns
         ]
+        output_path = save_dir / f"{task_name}_group_perf.csv"
+        # Clear stale summaries even when the current selection has no usable rows.
+        pd.DataFrame(columns=[f"avg_{metric}" for metric in metrics]).to_csv(
+            output_path
+        )
 
         if not metrics:
             print(f"Skipping grouped performance for {task_name}: no metric columns.")
@@ -206,6 +212,9 @@ def getTaskGroupPerf(
             continue
 
         task_df[metrics] = task_df[metrics].apply(pd.to_numeric, errors="coerce")
+        task_df[metrics] = task_df[metrics].replace(
+            [float("inf"), float("-inf")], float("nan")
+        )
         valid_group_map = {
             group: [
                 desc
@@ -214,6 +223,11 @@ def getTaskGroupPerf(
             ]
             for group, descs in group_map.items()
         }
+        for group, members in valid_group_map.items():
+            if not members:
+                present = [desc for desc in group_map[group] if desc in task_df.index]
+                reason = "all members excluded" if present else "no matching task rows"
+                print(f"Omitting {task_name} group '{group}': {reason}.")
         valid_group_map = {
             group: descs for group, descs in valid_group_map.items() if descs
         }
@@ -236,7 +250,8 @@ def getTaskGroupPerf(
             print(f"Skipping grouped performance for {task_name}: empty result.")
             continue
 
-        gp_df.to_csv(save_dir / f"{task_name}_group_perf.csv")
+        gp_df.to_csv(output_path)
+        print(f"Recalculated grouped performance: {output_path}")
         group_perf_by_task[task_name] = gp_df
 
     return group_perf_by_task
