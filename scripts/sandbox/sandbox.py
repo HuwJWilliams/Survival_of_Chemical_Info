@@ -1551,26 +1551,27 @@ if run_8:
         # "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
         # "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
         # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
-        "pred_mordred_tr_chemberta-dc/analysis/random_forest/regression_group_perf.csv",
-        "pred_mordred_tr_chemberta-sey/analysis/random_forest/regression_group_perf.csv",
-        "pred_mordred_tr_molformer-ibm/analysis/random_forest/regression_group_perf.csv",
-        "pred_mordred_tr_molformer-dc/analysis/random_forest/regression_group_perf.csv",
-        "pred_mordred_tr_selformer/analysis/random_forest/regression_group_perf.csv",
+        # "pred_mordred_tr_chemberta-dc/analysis/random_forest/regression_group_perf.csv",
+        # "pred_mordred_tr_chemberta-sey/analysis/random_forest/regression_group_perf.csv",
+        # "pred_mordred_tr_molformer-ibm/analysis/random_forest/regression_group_perf.csv",
+        # "pred_mordred_tr_molformer-dc/analysis/random_forest/regression_group_perf.csv",
+        # "pred_mordred_tr_selformer/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_avg_transformers/group_performance_by_task.csv"
     ]
 
-    groups = [
-        "AcidBase",
-        "Autocorrelation",
-        "BCUT",
-        "TopologicalIndex",
-        "GeometricalIndex",
-        "MoeType",
-        "MoRSE",
-        "MolecularDistanceEdge",
-        "PBF",
-        "RotatableBond",
-        "EState",
-    ]
+    # groups = [
+    #     "AcidBase",
+    #     "Autocorrelation",
+    #     "BCUT",
+    #     "TopologicalIndex",
+    #     "GeometricalIndex",
+    #     "MoeType",
+    #     "MoRSE",
+    #     "MolecularDistanceEdge",
+    #     "PBF",
+    #     "RotatableBond",
+    #     "EState",
+    # ]
     # for path in paths:
     #     print(path)
     #     df = pd.read_csv(std_path + path, index_col=0)
@@ -1593,13 +1594,15 @@ if run_8:
 
     for path in paths:
         df = pd.read_csv(Path(std_path) / path, index_col=0)
-        performance = df.loc[:, metrics].reindex(groups)
-        group_results.append(performance)
+    #     performance = df.loc[:, metrics].reindex(groups)
+    #     group_results.append(performance)
 
-        print(f"\n{path}")
-        print(performance.to_string(float_format="{:.6f}".format))
+    #     print(f"\n{path}")
+    #     print(performance.to_string(float_format="{:.6f}".format))
 
-    overall_by_group = pd.concat(group_results).groupby(level=0).mean().reindex(groups)
+    # overall_by_group = pd.concat(group_results).groupby(level=0).mean().reindex(groups)
 
-    print("\nMean performance by group across paths")
-    print(overall_by_group.to_string(float_format="{:.6f}".format))
+    # print("\nMean performance by group across paths")
+    # print(overall_by_group.to_string(float_format="{:.6f}".format))
+
+    print(df.sort_values(by="avg_Pearson_r", ascending=True).head(15))
