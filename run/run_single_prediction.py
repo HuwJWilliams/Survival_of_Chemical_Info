@@ -146,7 +146,8 @@ max_nan_frac = args.max_nan_frac
 corr_threshold = args.corr_threshold
 in_features = FULL_PATHING["full_features"][task][feat]
 in_targets = FULL_PATHING["targets"][task]
-out_dir = FULL_PATHING["prediction_output_dirs"][model_name][task][feat]
+rf_output_dir = FULL_PATHING["prediction_output_dirs"]["rf"][task][feat]
+out_dir = rf_output_dir / model_name
 add_feats = args.additional_features
 
 if add_feats is not None and add_feats.get("feature_set") is not None:
