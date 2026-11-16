@@ -1551,11 +1551,11 @@ if run_8:
         # "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
         # "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
         # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
-        "pred_mordred_tr_chemberta-dc/random_forest/regression_group_perf.csv",
-        "pred_mordred_tr_chemberta-sey/random_forest/regression_group_perf.csv",
-        "pred_mordred_tr_molformer-ibm/random_forest/regression_group_perf.csv",
-        "pred_mordred_tr_molformer-dc/random_forest/regression_group_perf.csv",
-        "pred_mordred_tr_selformer/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_chemberta-dc/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_chemberta-sey/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_molformer-ibm/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_molformer-dc/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_selformer/analysis/random_forest/regression_group_perf.csv",
     ]
 
     groups = [
