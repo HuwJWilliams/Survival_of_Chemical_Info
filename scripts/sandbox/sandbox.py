@@ -1545,7 +1545,7 @@ if run_8:
         # mean_r2 = df["r2"].mean()
         # mean_pear = df["Pearson_r"].mean()
 
-        filt_df = df.loc[df.index.str.startswith("FPDen", na=False)].copy()
+        filt_df = df.loc[df.index.str.startswith("FpDensity", na=False)].copy()
         mean_r2 = filt_df["r2"].mean()
         mean_pear = filt_df["Pearson_r"].mean()
 
