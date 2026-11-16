@@ -1532,14 +1532,14 @@ if run_8:
         "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
         # "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
         # "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
-        "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
-        "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
-        "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
-        "pred_mordred_tr_chemberta/pred_mordred_tr_chemberta.csv",
-        "pred_mordred_tr_chembertasey/pred_mordred_tr_chembertasey.csv",
-        "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
-        "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
-        "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
+        "pred_mordred_tr_rdkit/random_forest/pred_mordred_tr_rdkit.csv",
+        "pred_mordred_tr_maccs/random_forest/pred_mordred_tr_maccs.csv",
+        "pred_mordred_tr_morgan/random_forest/pred_mordred_tr_morgan.csv",
+        "pred_mordred_tr_chemberta-dc/random_forest/pred_mordred_tr_chemberta-dc.csv",
+        "pred_mordred_tr_chemberta-sey/random_forest/pred_mordred_tr_chemberta-sey.csv",
+        "pred_mordred_tr_molformer-ibm/random_forest/pred_mordred_tr_molformer-ibm.csv",
+        "pred_mordred_tr_molformer-dc/random_forest/pred_mordred_tr_molformer-dc.csv",
+        "pred_mordred_tr_selformer/random_forest/pred_mordred_tr_selformer.csv",
     ]
 
     # paths = [
