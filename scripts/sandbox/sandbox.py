@@ -1666,3 +1666,6 @@ if run_9:
     print(f"Descriptors: {len(values)}")
     print(f"Mean Pearson r: {values.mean():.6f}")
     print(f"SD Pearson r: {values.std(ddof=1):.6f}")
+    print(f"Minimum Pearson r: {values.min():.6f}")
+    print(f"Maximum Pearson r: {values.max():.6f}")
+    print(f"Range Pearson r (max - min): {values.max() - values.min():.6f}")
