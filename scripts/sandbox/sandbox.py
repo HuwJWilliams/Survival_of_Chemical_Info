@@ -1551,8 +1551,8 @@ if run_8:
         print(f"pear: {mean_pear}")
 
         aats_df = df.loc[df.index.str.startswith("AATS", na=False)].copy()
-        mean_r2 = ats_df["r2"].mean()
-        mean_pear = ats_df["Pearson_r"].mean()
+        mean_r2 = aats_df["r2"].mean()
+        mean_pear = aats_df["Pearson_r"].mean()
 
         print(f"r2: {mean_r2}")
         print(f"pear: {mean_pear}")
