@@ -1526,6 +1526,7 @@ if run_8:
 
     std_path = "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/"
     paths = [
+        "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
         "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
         "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
         "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
