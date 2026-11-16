@@ -1601,5 +1601,13 @@ if run_8:
 
     overall_mean = pd.concat(group_results).mean()
 
-    print("\nOverall mean")
-    print(overall_mean.to_string(float_format="{:.6f}".format))
+    overall_by_group = (
+    pd.concat(group_results)
+    .groupby(level=0)
+    .mean()
+    .reindex(groups)
+)
+
+    print("\nMean performance by group across paths")
+    print(overall_by_group.to_string(float_format="{:.6f}".format))
+
