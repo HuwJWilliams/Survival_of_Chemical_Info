@@ -1653,6 +1653,13 @@ if run_9:
     moe_members = df.index.astype(str).str.fullmatch(
         r"(?:PEOE_VSA|SMR_VSA|SlogP_VSA|EState_VSA|VSA_EState)\d+(?:_mordred)?"
     )
+    moe_df = df.loc[moe_members].copy()
+    moe_df[metric] = pd.to_numeric(moe_df[metric], errors="coerce").replace(
+        [np.inf, -np.inf], np.nan
+    )
+    moe_df = moe_df.sort_values(metric, ascending=False, na_position="last")
+    print("\nMoeType descriptors excluding LabuteASA, highest to lowest Pearson r:")
+    print(moe_df.to_string())
     values = pd.to_numeric(
         df.loc[moe_members, metric], errors="coerce"
     ).replace([np.inf, -np.inf], np.nan).dropna()
