@@ -1,5 +1,4 @@
 import pandas as pd
-import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Enable only the analyses you want to run.
@@ -12,6 +11,9 @@ run_6 = False  # Classification ROC/AUC curves
 run_7 = False
 run_8 = False
 run_9 = True  # MoeType Pearson r SD across descriptors, excluding LabuteASA
+
+if any((run_1, run_2, run_3, run_4, run_5, run_6, run_7, run_8)):
+    import matplotlib.pyplot as plt
 
 # Try binary descriptors in random order until this many plots succeed.
 ROC_PLOT_COUNT = 5
@@ -1621,23 +1623,14 @@ if run_8:
 
 # %% MoeType performance spread without LabuteASA
 if run_9:
-    import sys
     import numpy as np
-
-    sys.path.insert(
-        0, str(Path(__file__).resolve().parents[1] / "src" / "datasets")
-    )
-    from group_descriptors import getMordredGroups
 
     csv_path = Path(
         "/users/yhb18174/TL_project/results/"
         "lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/"
         "pred_mordred_avg_transformers/avg_stats_across_embedding_models.csv"
     )
-    members = [
-        name for name in getMordredGroups()["MoeType"]
-        if "LabuteASA" not in name
-    ]
+    print(f"Reading {csv_path}", flush=True)
     df = pd.read_csv(csv_path, index_col=0)
     if "task_type" in df.columns:
         df = df.loc[df["task_type"] == "regression"]
@@ -1655,8 +1648,13 @@ if run_9:
             f"found {metric_columns}. Available columns: {df.columns.tolist()}"
         )
     metric = metric_columns[0]
+    # Mordred MoeType surface-area families, excluding LabuteASA.
+    # Match names directly to avoid importing RDKit/Mordred and building all descriptors.
+    moe_members = df.index.astype(str).str.fullmatch(
+        r"(?:PEOE_VSA|SMR_VSA|SlogP_VSA|EState_VSA|VSA_EState)\d+(?:_mordred)?"
+    )
     values = pd.to_numeric(
-        df.loc[df.index.isin(members), metric], errors="coerce"
+        df.loc[moe_members, metric], errors="coerce"
     ).replace([np.inf, -np.inf], np.nan).dropna()
     if len(values) < 2:
         raise ValueError(f"Need at least two finite MoeType values in {csv_path}")
