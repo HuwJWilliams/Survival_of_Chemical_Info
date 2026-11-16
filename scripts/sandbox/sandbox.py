@@ -1532,7 +1532,7 @@ if run_8:
         "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
         # "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
         # "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
-        "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
+        "pred_mordred_tr_rdkit/random_forest/pred_mordred_tr_rdkit.csv",
         "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
         "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
         "pred_mordred_tr_chemberta-dc/random_forest/pred_mordred_tr_chemberta-dc.csv",
