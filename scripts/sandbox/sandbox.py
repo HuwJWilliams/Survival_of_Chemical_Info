@@ -1599,15 +1599,7 @@ if run_8:
         print(f"\n{path}")
         print(performance.to_string(float_format="{:.6f}".format))
 
-    overall_mean = pd.concat(group_results).mean()
-
-    overall_by_group = (
-    pd.concat(group_results)
-    .groupby(level=0)
-    .mean()
-    .reindex(groups)
-)
+    overall_by_group = pd.concat(group_results).groupby(level=0).mean().reindex(groups)
 
     print("\nMean performance by group across paths")
     print(overall_by_group.to_string(float_format="{:.6f}".format))
-

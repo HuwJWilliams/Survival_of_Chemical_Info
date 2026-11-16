@@ -183,6 +183,7 @@ else:
         exp_perf_df = selectModelPerformance(
             pd.read_csv(exp_perf_df_path, index_col=0),
             model_name=args.model_name,
+            performance_path=exp_perf_df_path,
         )
 
         analysis_dir = (

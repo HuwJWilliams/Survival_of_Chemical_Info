@@ -602,11 +602,20 @@ def resolveCFPPerformancePath(exp_dir, experiment, model_name=None):
 def selectModelPerformance(
     performance_df: pd.DataFrame,
     model_name: str | None = None,
+    performance_path: str | Path | None = None,
 ) -> pd.DataFrame:
-    """Select one model before analysing a shared CFP performance table."""
+    """Filter shared tables, or accept unlabelled tables in a model directory."""
     if "model" not in performance_df.columns:
         if model_name is not None:
-            raise ValueError("Performance table has no model column to filter")
+            if (
+                performance_path is None
+                or Path(performance_path).parent.name != model_name
+            ):
+                raise ValueError(
+                    "Performance table has no model column to filter; "
+                    f"unlabelled results must be in a '{model_name}' subdirectory "
+                    "when selecting that model"
+                )
         return performance_df
 
     if model_name is None:
@@ -675,7 +684,9 @@ def averageExperimentPerformance(
             raise FileNotFoundError(f"Could not find experiment file: {exp_path}")
 
         exp_df = selectModelPerformance(
-            pd.read_csv(exp_path, index_col=0), model_name=model_name
+            pd.read_csv(exp_path, index_col=0),
+            model_name=model_name,
+            performance_path=exp_path,
         )
         dfs.append(exp_df)
 
