@@ -10,7 +10,8 @@ run_4 = False  # Atomic-mass autocorrelation distributions
 run_5 = False  # Fine-tuned vs ID-trimmed base predictions
 run_6 = False  # Classification ROC/AUC curves
 run_7 = False
-run_8 = True
+run_8 = False
+run_9 = True  # MoeType Pearson r SD across descriptors, excluding LabuteASA
 
 # Try binary descriptors in random order until this many plots succeed.
 ROC_PLOT_COUNT = 5
@@ -1616,3 +1617,60 @@ if run_8:
             ["avg_r2", "descriptor_group"]
         ].head(15)
     )
+
+
+# %% MoeType performance spread without LabuteASA
+if run_9:
+    import sys
+    import numpy as np
+
+    sys.path.insert(
+        0, str(Path(__file__).resolve().parents[1] / "src" / "datasets")
+    )
+    from group_descriptors import getMordredGroups
+
+    results_dir = Path(
+        "/users/yhb18174/TL_project/results/"
+        "lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp"
+    )
+    model_name = "random_forest"
+    experiments = [
+        "pred_mordred_tr_molformer-dc",
+        "pred_mordred_tr_molformer-ibm",
+        "pred_mordred_tr_chemberta-dc",
+        "pred_mordred_tr_chemberta-sey",
+        "pred_mordred_tr_selformer",
+    ]
+    members = [
+        name for name in getMordredGroups()["MoeType"]
+        if "LabuteASA" not in name
+    ]
+    summaries = []
+    for experiment in experiments:
+        exp_dir = results_dir / experiment
+        csv_path = exp_dir / model_name / f"{experiment}.csv"
+        if not csv_path.is_file():
+            csv_path = exp_dir / f"{experiment}.csv"
+        df = pd.read_csv(csv_path, index_col=0)
+        if "model" in df.columns:
+            df = df.loc[df["model"] == model_name]
+        if "task_type" in df.columns:
+            df = df.loc[df["task_type"] == "regression"]
+        if df.index.has_duplicates:
+            raise ValueError(f"Expected one row per descriptor in {csv_path}")
+        values = pd.to_numeric(
+            df.loc[df.index.isin(members), "Pearson_r"], errors="coerce"
+        ).replace([np.inf, -np.inf], np.nan).dropna()
+        if len(values) < 2:
+            raise ValueError(f"Need at least two finite MoeType values in {csv_path}")
+        summaries.append({
+            "experiment": experiment,
+            "n_descriptors": len(values),
+            "mean_Pearson_r": values.mean(),
+            "sd_Pearson_r": values.std(ddof=1),
+        })
+
+    print("\nMoeType excluding LabuteASA: sample SD across descriptor Pearson r values")
+    print(pd.DataFrame(summaries).set_index("experiment").to_string(
+        float_format="{:.6f}".format
+    ))
