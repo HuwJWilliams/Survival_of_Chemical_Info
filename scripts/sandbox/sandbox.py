@@ -1605,4 +1605,14 @@ if run_8:
     # print("\nMean performance by group across paths")
     # print(overall_by_group.to_string(float_format="{:.6f}".format))
 
-print(df.sort_values(by="avg_Pearson_r", ascending=True)[["avg_Pearson_r"]].head(15))
+    print(
+        df.sort_values(by="avg_Pearson_r", ascending=True)[
+            ["avg_Pearson_r", "descriptor_group"]
+        ].head(15)
+    )
+
+    print(
+        df.sort_values(by="avg_r2", ascending=True)[
+            ["avg_r2", "descriptor_group"]
+        ].head(15)
+    )
