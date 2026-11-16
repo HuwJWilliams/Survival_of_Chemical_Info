@@ -1546,3 +1546,7 @@ if run_8:
         filt_df = df.loc[df.index.str.startswith("FPMo", na=False)].copy()
         mean_r2 = filt_df["r2"].mean()
         mean_pear = filt_df["Pearson_r"].mean()
+
+        print(f"r2: {mean_r2}")
+        print(f"pear: {mean_pear}")
+
