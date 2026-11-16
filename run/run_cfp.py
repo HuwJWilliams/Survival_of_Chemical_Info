@@ -232,7 +232,7 @@ common_idx = train_df.index.intersection(target_df.index)
 
 if args.trimmed_data_size is not None:
     # Shuffle the shared IDs, then keep the first N, so both frames get the same rows
-    rng = np.random.default_rng(args.random_seed)
+    rng = np.random.default_rng(42)
     shuffled_idx = rng.permutation(common_idx.to_numpy())
     common_idx = pd.Index(shuffled_idx[: args.trimmed_data_size], name=common_idx.name)
 train_df, target_df = train_df.loc[common_idx], target_df.loc[common_idx]
