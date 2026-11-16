@@ -1520,3 +1520,15 @@ if run_7:
         print(f"Saved: {out}")
 
 
+if run_8:
+    import numpy as np
+    import pandas as pd
+    path = "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_rdkit/"
+    file = "pred_mordred_tr_rdkit.csv"
+
+    df = pd.read_csv(path + file)
+    mean_r2 = df["r2"].mean()
+    mean_pear = df["Pearson_r"].mean()
+
+    print(f"r2: {mean_r2}")
+    print(f"pear: {mean_pear}")
