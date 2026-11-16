@@ -8,6 +8,7 @@ import json
 import pandas as pd
 from pathlib import Path
 import sys
+import subprocess
 from glob import glob
 
 # %% ===== Project Imports & Pathing Setup =====
@@ -42,9 +43,9 @@ p = argparse.ArgumentParser()
 
 p.add_argument(
     "--model-name",
-    type == "str",
+    choices=("all", "ridge", "svr", "mlp", "random_forest"),
     required=True,
-    help="Model type to use. E.g., random_forest, svm, ridge, mlp",
+    help="Model to run, or 'all' to run ridge, svr, mlp, and random_forest",
 )
 
 p.add_argument(
@@ -128,6 +129,14 @@ def getAdditionalFeaturesOutDirName(add_feats: dict) -> str:
 
 args = p.parse_args()
 
+if args.model_name == "all":
+    for selected_model in ("ridge", "svr", "mlp", "random_forest"):
+        command = [sys.executable, str(Path(__file__).resolve()), *sys.argv[1:]]
+        command[command.index("--model-name") + 1] = selected_model
+        print(f"Running {selected_model}", flush=True)
+        subprocess.run(command, check=True)
+    sys.exit(0)
+
 model_name = args.model_name
 task = args.predict_on
 feat = args.feature_set
@@ -151,7 +160,7 @@ if add_feats is not None and add_feats.get("feature_set") is not None:
     with open(out_dir / "additional_features_config.json", "w") as f:
         json.dump(add_feats, f, indent=4)
 
-        hyperparameter_path = RUN_DIR / "model_hyperparameters.json"
+hyperparameter_path = RUN_DIR / "model_hyperparameters.json"
 
 with open(hyperparameter_path, "r") as f:
     hyperparameter_config = json.load(f)
