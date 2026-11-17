@@ -1584,6 +1584,7 @@ if run_8:
         "MoRSE",
     ]
 
+    plot_rows = []
     for path in paths:
         csv_path = Path(std_path) / path
         print(f"\n{csv_path}")
@@ -1598,6 +1599,15 @@ if run_8:
         missing = [group for group in groups if group not in df.index]
         if missing:
             print(f"Missing groups: {', '.join(missing)}")
+        metric = "avg_Pearson_r" if "avg_Pearson_r" in group_df else "Pearson_r"
+        if metric not in group_df:
+            print(f"Skipping plot data: no Pearson r column in {csv_path}")
+            continue
+        model_label = Path(path).parts[0].removeprefix("pred_mordred_tr_")
+        if model_label == "pred_mordred_avg_transformers":
+            model_label = "avg_transformers"
+        for group, value in pd.to_numeric(group_df[metric], errors="coerce").items():
+            plot_rows.append({"model": model_label, "group": group, "Pearson_r": value})
         # mean_r2 = df["r2"].mean()
         # mean_pear = df["Pearson_r"].mean()
 
@@ -1607,6 +1617,23 @@ if run_8:
 
         # print(f"r2: {mean_r2}")
         # print(f"pear: {mean_pear}")
+
+    plot_df = pd.DataFrame(plot_rows)
+    if plot_df.empty:
+        raise ValueError("No group Pearson r values found for plotting")
+    plot_df.to_csv(Path(std_path) / "selected_group_pearson_by_model.csv", index=False)
+    pivot = plot_df.pivot(index="model", columns="group", values="Pearson_r")
+    pivot = pivot.reindex(columns=[group for group in groups if group in pivot])
+    ax = pivot.plot.bar(figsize=(max(12, len(pivot) * 1.8), 7), width=0.85)
+    ax.set_xlabel("Training feature set")
+    ax.set_ylabel("Mean Pearson r")
+    ax.set_title("Mordred descriptor group prediction performance")
+    ax.legend(title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left")
+    ax.figure.tight_layout()
+    output = Path(std_path) / "selected_group_pearson_by_model.png"
+    ax.figure.savefig(output, dpi=300, bbox_inches="tight")
+    plt.close(ax.figure)
+    print(f"Saved: {output}")
 
 
 # %% MoeType performance spread without LabuteASA
