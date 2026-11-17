@@ -9,11 +9,12 @@ run_4 = False  # Atomic-mass autocorrelation distributions
 run_5 = False  # Fine-tuned vs ID-trimmed base predictions
 run_6 = False  # Classification ROC/AUC curves
 run_7 = False
-run_8 = True
+run_8 = False
+run_11 = True  # Mordred group importance across properties
 run_9 = False  # MoeType Pearson r SD across descriptors, excluding LabuteASA
 run_10 = False  # Property prediction comparison plot
 
-if any((run_1, run_2, run_3, run_4, run_5, run_6, run_7, run_8)):
+if any((run_1, run_2, run_3, run_4, run_5, run_6, run_7, run_8, run_11)):
     import matplotlib.pyplot as plt
 
 # Try binary descriptors in random order until this many plots succeed.
@@ -1824,4 +1825,82 @@ if run_10:
     )
     fig.savefig(output, dpi=300)
     plt.close(fig)
+    print(f"Saved: {output}")
+
+
+if run_11:
+    import sys
+    import numpy as np
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "datasets"))
+    from group_descriptors import getMordredGroups
+
+    results_root = Path("/users/yhb18174/TL_project/results")
+    property_dirs = {
+        "pKa": "PKA_predictions_rf", "Boiling Point": "BP_predictions_rf",
+        "pKa basic": "PKA_P1B_predictions_rf", "pKa acidic": "PKA_P1A_predictions_rf",
+        "pIC50": "PIC50_predictions_rf", "log(LD50)": "LOG_LD50_predictions_rf",
+        "logD": "LOGD_predictions_rf", "Hole R.E.": "HOLE_RE_predictions_rf",
+        "Electron R.E.": "ELEC_RE_predictions_rf",
+        "EGFR pIC50": "EGFR_PIC50_predictions_rf",
+        "Aqueous Solubility": "AQ_SOL_predictions_rf",
+    }
+    groups = [
+        "RingCount", "Framework", "AtomCount", "RotatableBond",
+        "TopologicalIndex", "Chi", "KappaShapeIndex", "WalkCount",
+        "PathCount", "MolecularDistanceEdge", "GeometricalIndex", "PBF", "MoRSE",
+    ]
+    group_map = getMordredGroups()
+    rows = []
+    for prop, directory in property_dirs.items():
+        files = sorted((results_root / directory).glob(
+            "mordred/repeats/repeat_*/*feature_importance.csv"
+        ))
+        if not files:
+            print(f"Skipping {prop}: no feature-importance CSVs")
+            continue
+        repeat_rows = []
+        for file in files:
+            importance = pd.read_csv(file).set_index("Feature")["Importance"]
+            importance = pd.to_numeric(importance, errors="coerce")
+            if importance.index.has_duplicates:
+                importance = importance.groupby(level=0).sum(min_count=1)
+            for group in groups:
+                members = [name for name in group_map[group] if name in importance.index]
+                if members:
+                    repeat_rows.append({
+                        "property": prop, "repeat": file.parent.name,
+                        "group": group, "importance": importance.loc[members].sum(),
+                        "n_features": len(members),
+                    })
+        if not repeat_rows:
+            print(f"Skipping {prop}: no requested groups matched")
+            continue
+        repeat_df = pd.DataFrame(repeat_rows)
+        print(f"{prop}: {repeat_df['repeat'].nunique()} repeats")
+        rows.append(repeat_df)
+
+    if not rows:
+        raise ValueError("No feature importance data found for the selected groups")
+    all_repeats = pd.concat(rows, ignore_index=True)
+    all_repeats.to_csv(results_root / "mordred_group_importance_by_repeat.csv", index=False)
+    summary = (all_repeats.groupby(["property", "group"], as_index=False)
+               .agg(Importance=("importance", "mean"),
+                    SD=("importance", "std"),
+                    n_repeats=("importance", "count"),
+                    n_features=("n_features", "mean")))
+    summary.to_csv(results_root / "mordred_group_importance_by_property.csv", index=False)
+
+    pivot = summary.pivot(index="property", columns="group", values="Importance")
+    pivot = pivot.reindex(index=[p for p in property_dirs if p in pivot.index],
+                          columns=[g for g in groups if g in pivot.columns])
+    ax = pivot.plot.bar(figsize=(max(14, len(pivot) * 1.4), 7), width=0.85)
+    ax.set_xlabel("Property")
+    ax.set_ylabel("Mean feature importance across repeats")
+    ax.set_title("Mordred descriptor group feature importance")
+    ax.legend(title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left")
+    ax.figure.tight_layout()
+    output = results_root / "mordred_group_importance_by_property.png"
+    ax.figure.savefig(output, dpi=300, bbox_inches="tight")
+    plt.close(ax.figure)
     print(f"Saved: {output}")
