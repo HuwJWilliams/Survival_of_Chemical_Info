@@ -1959,14 +1959,16 @@ if run_11:
         ax.set_title(title, fontsize=18, pad=16)
         ax.spines[["top", "right"]].set_visible(False)
         ax.legend(
-            handles=[Patch(color=colours[g], label=g) for g in plotted_groups],
+            handles=[
+                Patch(color=colours[g], label=f"{g} (n={len(group_map[g])})")
+                for g in plotted_groups
+            ],
             title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left",
             fontsize=13, title_fontsize=14, frameon=False,
         )
         fig.tight_layout()
         output = results_root / filename
         fig.savefig(output, dpi=600, bbox_inches="tight")
-        fig.savefig(output.with_suffix(".pdf"), bbox_inches="tight")
         plt.close(fig)
         print(f"Saved: {output}")
 
