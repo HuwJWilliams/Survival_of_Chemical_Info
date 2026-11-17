@@ -1622,17 +1622,37 @@ if run_8:
     if plot_df.empty:
         raise ValueError("No group Pearson r values found for plotting")
     plot_df.to_csv(Path(std_path) / "selected_group_pearson_by_model.csv", index=False)
-    pivot = plot_df.pivot(index="model", columns="group", values="Pearson_r")
-    pivot = pivot.reindex(columns=[group for group in groups if group in pivot])
-    ax = pivot.plot.bar(figsize=(max(12, len(pivot) * 1.8), 7), width=0.85)
-    ax.set_xlabel("Training feature set")
+    import numpy as np
+
+    fig, ax = plt.subplots(figsize=(max(14, len(groups) * 1.4), 7))
+    present_groups = [group for group in groups if group in plot_df["group"].values]
+    model_order = plot_df["model"].drop_duplicates().tolist()
+    colours = dict(zip(model_order, plt.get_cmap("tab20").colors))
+    for group_i, group in enumerate(present_groups):
+        group_scores = (
+            plot_df.loc[plot_df["group"] == group]
+            .dropna(subset=["Pearson_r"])
+            .sort_values("Pearson_r", ascending=False)
+        )
+        n_bars = len(group_scores)
+        if not n_bars:
+            continue
+        width = min(0.85 / n_bars, 0.16)
+        offsets = (np.arange(n_bars) - (n_bars - 1) / 2) * width
+        for offset, row in zip(offsets, group_scores.itertuples()):
+            ax.bar(group_i + offset, row.Pearson_r, width,
+                   color=colours[row.model])
+    ax.set_xticks(range(len(present_groups)), present_groups, rotation=45, ha="right")
+    ax.set_xlabel("Descriptor group")
     ax.set_ylabel("Mean Pearson r")
     ax.set_title("Mordred descriptor group prediction performance")
-    ax.legend(title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left")
-    ax.figure.tight_layout()
-    output = Path(std_path) / "selected_group_pearson_by_model.png"
-    ax.figure.savefig(output, dpi=300, bbox_inches="tight")
-    plt.close(ax.figure)
+    from matplotlib.patches import Patch
+    ax.legend(handles=[Patch(color=colours[name], label=name) for name in model_order],
+              title="Training feature set", bbox_to_anchor=(1.02, 1), loc="upper left")
+    fig.tight_layout()
+    output = Path(std_path) / "selected_group_pearson_by_group.png"
+    fig.savefig(output, dpi=300, bbox_inches="tight")
+    plt.close(fig)
     print(f"Saved: {output}")
 
 
