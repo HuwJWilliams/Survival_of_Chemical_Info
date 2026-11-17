@@ -9,8 +9,9 @@ run_4 = False  # Atomic-mass autocorrelation distributions
 run_5 = False  # Fine-tuned vs ID-trimmed base predictions
 run_6 = False  # Classification ROC/AUC curves
 run_7 = False
-run_8 = True
+run_8 = False
 run_9 = False  # MoeType Pearson r SD across descriptors, excluding LabuteASA
+run_10 = True  # Property prediction comparison plot
 
 if any((run_1, run_2, run_3, run_4, run_5, run_6, run_7, run_8)):
     import matplotlib.pyplot as plt
@@ -1649,3 +1650,73 @@ if run_9:
     print(f"Minimum Pearson r: {values.min():.6f}")
     print(f"Maximum Pearson r: {values.max():.6f}")
     print(f"Range Pearson r (max - min): {values.max() - values.min():.6f}")
+
+
+# %% Compare MolFormer-DC, Mordred, and their combined property predictions
+if run_10:
+    import json
+    import sys
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    project = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(project / "run" / "config"))
+    from config import FULL_PATHING
+
+    model_name = "random_forest"
+    embedding = "molformer-dc"
+    properties = [
+        "aq_sol", "bp", "egfr_pic50", "elec_re", "hole_re", "logd",
+        "log_ld50", "pic50", "pka", "pka_paper1_acidic", "pka_paper1_basic",
+    ]
+    labels = {
+        "aq_sol": "Aqueous Solubility", "bp": "Boiling Point",
+        "egfr_pic50": "EGFR pIC50", "elec_re": "Electron R.E.",
+        "hole_re": "Hole R.E.", "logd": "logD", "log_ld50": "log(LD50)",
+        "pic50": "pIC50", "pka": "pKa",
+        "pka_paper1_acidic": "pKa (acidic)",
+        "pka_paper1_basic": "pKa (basic)",
+    }
+
+    def score(path):
+        with path.open() as handle:
+            metrics = json.load(handle)["external"]["mean"]
+        for key in ("pearson_r", "Pearson_r", "Pearson_R", "Pearson"):
+            if key in metrics:
+                return float(metrics[key])
+        raise KeyError(f"No Pearson r in {path}: {list(metrics)}")
+
+    rows = []
+    for prop in properties:
+        paths = FULL_PATHING["prediction_output_dirs"]["rf"].get(prop, {})
+        if embedding not in paths or "mordred" not in paths:
+            print(f"Skipping {prop}: feature path is not configured")
+            continue
+        emb_base = Path(paths[embedding]) / model_name
+        files = {
+            "Embedding": emb_base / f"{model_name}_performance.json",
+            "Mordred": Path(paths["mordred"]) / model_name / f"{model_name}_performance.json",
+            "Embedding + Mordred": emb_base / "additional_features" / "mordred" / f"{model_name}_performance.json",
+        }
+        missing = [str(path) for path in files.values() if not path.is_file()]
+        if missing:
+            print(f"Skipping {prop}; missing: {missing}")
+            continue
+        rows.append((prop, {name: score(path) for name, path in files.items()}))
+
+    if not rows:
+        raise FileNotFoundError("No property has all three performance files")
+    x = np.arange(len(rows))
+    fig, ax = plt.subplots(figsize=(max(10, len(rows) * 1.2), 5))
+    for i, name in enumerate(("Embedding", "Mordred", "Embedding + Mordred")):
+        ax.bar(x + (i - 1) * 0.26, [scores[name] for _, scores in rows], 0.26, label=name)
+    ax.set_xticks(x, [labels[prop] for prop, _ in rows], rotation=45, ha="right")
+    ax.set_ylabel("External Pearson r")
+    ax.set_xlabel("Property")
+    ax.set_title("Embedding vs Mordred vs Embedding + Mordred")
+    ax.legend(title="Feature Set")
+    fig.tight_layout()
+    output = Path(FULL_PATHING["imp_dirs"]["results_dir"]) / f"{embedding}_{model_name}_mordred_comparison.png"
+    fig.savefig(output, dpi=300)
+    plt.close(fig)
+    print(f"Saved: {output}")

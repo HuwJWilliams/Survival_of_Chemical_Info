@@ -9,6 +9,7 @@ import pandas as pd
 from pathlib import Path
 import sys
 import subprocess
+import os
 from glob import glob
 
 # %% ===== Project Imports & Pathing Setup =====
@@ -70,6 +71,12 @@ p.add_argument(
     help="Number of internal resamples per repeat",
 )
 p.add_argument(
+    "--n-jobs",
+    type=int,
+    default=int(os.environ.get("SLURM_CPUS_PER_TASK", "1")),
+    help="Parallel resampling workers (defaults to SLURM_CPUS_PER_TASK, or 1)",
+)
+p.add_argument(
     "--max-nan-frac",
     type=float,
     default=0,
@@ -128,6 +135,8 @@ def getAdditionalFeaturesOutDirName(add_feats: dict) -> str:
 
 
 args = p.parse_args()
+if args.n_jobs < 1:
+    p.error("--n-jobs must be at least 1")
 
 if args.model_name == "all":
     for selected_model in ("ridge", "svr", "mlp", "random_forest"):
@@ -311,6 +320,8 @@ for repeat_i in range(args.repeats):
         model_name=model_name,
         hyper_params=hyper_params,
         n_resamples=args.n_resamples,
+        outer_n_jobs=args.n_jobs,
+        inner_n_jobs=1,
         test_size=0.3,
         random_seed=repeat_seed,
         save_models=True,
