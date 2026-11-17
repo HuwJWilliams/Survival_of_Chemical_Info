@@ -1627,7 +1627,24 @@ if run_8:
     fig, ax = plt.subplots(figsize=(max(14, len(groups) * 1.4), 7))
     present_groups = [group for group in groups if group in plot_df["group"].values]
     model_order = plot_df["model"].drop_duplicates().tolist()
-    colours = dict(zip(model_order, plt.get_cmap("tab20").colors))
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "visualisation"))
+    from vis import Visualise
+
+    visualiser = Visualise()
+    colour_aliases = {
+        "chemberta-dc": "chemberta",
+        "chemberta-sey": "chembertasey",
+        "molformer-dc": "molformer-c3-1b",
+        "molformer-ibm": "molformer",
+        "avg_transformers": "selformer",
+    }
+    colours = {
+        name: visualiser.colour_map.get(
+            name, visualiser.colour_map.get(colour_aliases.get(name), "#808080")
+        )
+        for name in model_order
+    }
     for group_i, group in enumerate(present_groups):
         group_scores = (
             plot_df.loc[plot_df["group"] == group]
