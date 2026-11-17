@@ -1915,6 +1915,8 @@ if run_11:
     if not rows:
         raise ValueError("No feature importance data found for the selected groups")
     all_repeats = pd.concat(rows, ignore_index=True)
+    plotted_groups = [group for group in groups if group in set(all_repeats["group"])]
+    print(f"Groups with at least one reported value: {', '.join(plotted_groups)}")
     all_repeats.to_csv(
         results_root / "mordred_group_importance_by_repeat.csv", index=False
     )
@@ -1933,7 +1935,7 @@ if run_11:
     pivot = summary.pivot(index="property", columns="group", values="Importance")
     pivot = pivot.reindex(
         index=[p for p in property_dirs if p in pivot.index],
-        columns=[g for g in groups if g in pivot.columns],
+        columns=plotted_groups,
     )
     ax = pivot.plot.bar(figsize=(max(14, len(pivot) * 1.4), 7), width=0.85)
     ax.set_xlabel("Property")
