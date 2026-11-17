@@ -9,9 +9,9 @@ run_4 = False  # Atomic-mass autocorrelation distributions
 run_5 = False  # Fine-tuned vs ID-trimmed base predictions
 run_6 = False  # Classification ROC/AUC curves
 run_7 = False
-run_8 = False
+run_8 = True
 run_9 = False  # MoeType Pearson r SD across descriptors, excluding LabuteASA
-run_10 = True  # Property prediction comparison plot
+run_10 = False  # Property prediction comparison plot
 
 if any((run_1, run_2, run_3, run_4, run_5, run_6, run_7, run_8)):
     import matplotlib.pyplot as plt
@@ -1543,7 +1543,7 @@ if run_8:
         "pred_mordred_tr_selformer/random_forest/pred_mordred_tr_selformer.csv",
     ]
 
-    # paths = [
+    paths = [
     # "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
     # "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
     # "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
@@ -1555,32 +1555,49 @@ if run_8:
     # "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
     # "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
     # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
-    # "pred_mordred_tr_chemberta-dc/analysis/random_forest/regression_group_perf.csv",
-    # "pred_mordred_tr_chemberta-sey/analysis/random_forest/regression_group_perf.csv",
-    # "pred_mordred_tr_molformer-ibm/analysis/random_forest/regression_group_perf.csv",
-    # "pred_mordred_tr_molformer-dc/analysis/random_forest/regression_group_perf.csv",
-    # "pred_mordred_tr_selformer/analysis/random_forest/regression_group_perf.csv",
-    # "pred_mordred_avg_transformers/group_performance_by_task.csv"
-    # ]
 
-    # groups = [
-    #     "AcidBase",
-    #     "Autocorrelation",
-    #     "BCUT",
-    #     "TopologicalIndex",
-    #     "GeometricalIndex",
-    #     "MoeType",
-    #     "MoRSE",
-    #     "MolecularDistanceEdge",
-    #     "PBF",
-    #     "RotatableBond",
-    #     "EState",
-    # ]
+
+    "pred_mordred_tr_rdkit/random_forest/regression_group_perf.csv",
+    "pred_mordred_tr_maccs/regression_group_perf.csv",
+    "pred_mordred_tr_morgan/regression_group_perf.csv",
+    "pred_mordred_tr_chemberta-dc/analysis/random_forest/regression_group_perf.csv",
+    "pred_mordred_tr_chemberta-sey/analysis/random_forest/regression_group_perf.csv",
+    "pred_mordred_tr_molformer-ibm/analysis/random_forest/regression_group_perf.csv",
+    "pred_mordred_tr_molformer-dc/analysis/random_forest/regression_group_perf.csv",
+    "pred_mordred_tr_selformer/analysis/random_forest/regression_group_perf.csv",
+    "pred_mordred_avg_transformers/group_performance_by_task.csv"
+    ]
+
+    groups = [
+        "RingCount",
+        "Framework",
+        "AtomCount",
+        "RotatableBond",
+        "TopologicalIndex",
+        "Chi",
+        "KappaShapeIndex",
+        "WalkCount",
+        "PathCount",
+        "MolecularDistanceEdge",
+        "GeometricalIndex",
+        "PBF",
+        "MoRSE",
+    ]
+
     for path in paths:
-        print(path)
-        df = pd.read_csv(std_path + path, index_col=0)
-        df = df[df["task_type"] == "regression"]
-        print(len(df))
+        csv_path = Path(std_path) / path
+        print(f"\n{csv_path}")
+        df = pd.read_csv(csv_path, index_col=0)
+        # Group names are index values; task type, when present, is a column.
+        if "task_type" in df.columns:
+            df = df.loc[df["task_type"] == "regression"]
+        group_df = df.loc[df.index.isin(groups)].reindex(
+            [group for group in groups if group in df.index]
+        )
+        print(group_df.to_string() if not group_df.empty else "No requested groups found")
+        missing = [group for group in groups if group not in df.index]
+        if missing:
+            print(f"Missing groups: {', '.join(missing)}")
         # mean_r2 = df["r2"].mean()
         # mean_pear = df["Pearson_r"].mean()
 
@@ -1666,14 +1683,28 @@ if run_10:
     model_name = "random_forest"
     embedding = "molformer-dc"
     properties = [
-        "aq_sol", "bp", "egfr_pic50", "elec_re", "hole_re", "logd",
-        "log_ld50", "pic50", "pka", "pka_paper1_acidic", "pka_paper1_basic",
+        "aq_sol",
+        "bp",
+        "egfr_pic50",
+        "elec_re",
+        "hole_re",
+        "logd",
+        "log_ld50",
+        "pic50",
+        "pka",
+        "pka_paper1_acidic",
+        "pka_paper1_basic",
     ]
     labels = {
-        "aq_sol": "Aqueous Solubility", "bp": "Boiling Point",
-        "egfr_pic50": "EGFR pIC50", "elec_re": "Electron R.E.",
-        "hole_re": "Hole R.E.", "logd": "logD", "log_ld50": "log(LD50)",
-        "pic50": "pIC50", "pka": "pKa",
+        "aq_sol": "Aqueous Solubility",
+        "bp": "Boiling Point",
+        "egfr_pic50": "EGFR pIC50",
+        "elec_re": "Electron R.E.",
+        "hole_re": "Hole R.E.",
+        "logd": "logD",
+        "log_ld50": "log(LD50)",
+        "pic50": "pIC50",
+        "pka": "pKa",
         "pka_paper1_acidic": "pKa (acidic)",
         "pka_paper1_basic": "pKa (basic)",
     }
@@ -1695,8 +1726,13 @@ if run_10:
         emb_base = Path(paths[embedding]) / model_name
         files = {
             "Embedding": emb_base / f"{model_name}_performance.json",
-            "Mordred": Path(paths["mordred"]) / model_name / f"{model_name}_performance.json",
-            "Embedding + Mordred": emb_base / "additional_features" / "mordred" / f"{model_name}_performance.json",
+            "Mordred": Path(paths["mordred"])
+            / model_name
+            / f"{model_name}_performance.json",
+            "Embedding + Mordred": emb_base
+            / "additional_features"
+            / "mordred"
+            / f"{model_name}_performance.json",
         }
         missing = [str(path) for path in files.values() if not path.is_file()]
         if missing:
@@ -1709,14 +1745,19 @@ if run_10:
     x = np.arange(len(rows))
     fig, ax = plt.subplots(figsize=(max(10, len(rows) * 1.2), 5))
     for i, name in enumerate(("Embedding", "Mordred", "Embedding + Mordred")):
-        ax.bar(x + (i - 1) * 0.26, [scores[name] for _, scores in rows], 0.26, label=name)
+        ax.bar(
+            x + (i - 1) * 0.26, [scores[name] for _, scores in rows], 0.26, label=name
+        )
     ax.set_xticks(x, [labels[prop] for prop, _ in rows], rotation=45, ha="right")
     ax.set_ylabel("External Pearson r")
     ax.set_xlabel("Property")
     ax.set_title("Embedding vs Mordred vs Embedding + Mordred")
     ax.legend(title="Feature Set")
     fig.tight_layout()
-    output = Path(FULL_PATHING["imp_dirs"]["results_dir"]) / f"{embedding}_{model_name}_mordred_comparison.png"
+    output = (
+        Path(FULL_PATHING["imp_dirs"]["results_dir"])
+        / f"{embedding}_{model_name}_mordred_comparison.png"
+    )
     fig.savefig(output, dpi=300)
     plt.close(fig)
     print(f"Saved: {output}")
