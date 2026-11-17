@@ -1848,12 +1848,12 @@ if run_11:
         "Boiling Point": "BP_predictions_rf",
         "pKa basic": "PKA_P1B_predictions_rf",
         "pKa acidic": "PKA_P1A_predictions_rf",
-        "pIC50": "PIC50_predictions_rf",
+        "pIC50 (BRD4)": "PIC50_predictions_rf",
         "log(LD50)": "LOG_LD50_predictions_rf",
         "logD": "LOGD_predictions_rf",
         "Hole R.E.": "HOLE_RE_predictions_rf",
         "Electron R.E.": "ELEC_RE_predictions_rf",
-        "EGFR pIC50": "EGFR_PIC50_predictions_rf",
+        "pIC50 (EGFR)": "EGFR_PIC50_predictions_rf",
         "Aqueous Solubility": "AQ_SOL_predictions_rf",
     }
     groups = [
@@ -1938,7 +1938,7 @@ if run_11:
     colours = dict(zip(plotted_groups, plt.get_cmap("tab20").colors))
 
     def plot_group_importance(value_column, ylabel, title, filename):
-        fig, ax = plt.subplots(figsize=(max(14, len(plotted_properties) * 1.4), 7))
+        fig, ax = plt.subplots(figsize=(max(18, len(plotted_properties) * 1.6), 9))
         for prop_i, prop in enumerate(plotted_properties):
             available = summary.loc[
                 (summary["property"] == prop)
@@ -1951,17 +1951,22 @@ if run_11:
             offsets = (np.arange(len(available)) - (len(available) - 1) / 2) * width
             for offset, (group, row) in zip(offsets, available.iterrows()):
                 ax.bar(prop_i + offset, row[value_column], width, color=colours[group])
-        ax.set_xticks(range(len(plotted_properties)), plotted_properties, rotation=45, ha="right")
-        ax.set_xlabel("Property")
-        ax.set_ylabel(ylabel)
-        ax.set_title(title)
+        ax.set_xticks(range(len(plotted_properties)), plotted_properties,
+                      rotation=45, ha="right", fontsize=14)
+        ax.tick_params(axis="y", labelsize=14)
+        ax.set_xlabel("Property", fontsize=16)
+        ax.set_ylabel(ylabel, fontsize=16)
+        ax.set_title(title, fontsize=18, pad=16)
+        ax.spines[["top", "right"]].set_visible(False)
         ax.legend(
             handles=[Patch(color=colours[g], label=g) for g in plotted_groups],
             title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left",
+            fontsize=13, title_fontsize=14, frameon=False,
         )
         fig.tight_layout()
         output = results_root / filename
-        fig.savefig(output, dpi=300, bbox_inches="tight")
+        fig.savefig(output, dpi=600, bbox_inches="tight")
+        fig.savefig(output.with_suffix(".pdf"), bbox_inches="tight")
         plt.close(fig)
         print(f"Saved: {output}")
 
