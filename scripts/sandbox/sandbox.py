@@ -1903,6 +1903,8 @@ if run_11:
                             "n_features": len(members),
                         }
                     )
+                else:
+                    print(f"Missing group {group}: {prop}, {file.parent.name}")
         if not repeat_rows:
             print(f"Skipping {prop}: no requested groups matched")
             continue
