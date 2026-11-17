@@ -1545,28 +1545,26 @@ if run_8:
     ]
 
     paths = [
-    # "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
-    # "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
-    # "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
-    # "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
-    # "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
-    # "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
-    # "pred_mordred_tr_chemberta/pred_mordred_tr_chemberta.csv",
-    # "pred_mordred_tr_chembertasey/pred_mordred_tr_chembertasey.csv",
-    # "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
-    # "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
-    # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
-
-
-    "pred_mordred_tr_rdkit/random_forest/regression_group_perf.csv",
-    "pred_mordred_tr_maccs/regression_group_perf.csv",
-    "pred_mordred_tr_morgan/regression_group_perf.csv",
-    "pred_mordred_tr_chemberta-dc/analysis/random_forest/regression_group_perf.csv",
-    "pred_mordred_tr_chemberta-sey/analysis/random_forest/regression_group_perf.csv",
-    "pred_mordred_tr_molformer-ibm/analysis/random_forest/regression_group_perf.csv",
-    "pred_mordred_tr_molformer-dc/analysis/random_forest/regression_group_perf.csv",
-    "pred_mordred_tr_selformer/analysis/random_forest/regression_group_perf.csv",
-    "pred_mordred_avg_transformers/group_performance_by_task.csv"
+        # "pred_rdkit_tr_mordred/pred_rdkit_tr_mordred.csv",
+        # "pred_rdkit_tr_maccs/pred_rdkit_tr_maccs.csv",
+        # "pred_rdkit_tr_morgan/pred_rdkit_tr_morgan.csv",
+        # "pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
+        # "pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
+        # "pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
+        # "pred_mordred_tr_chemberta/pred_mordred_tr_chemberta.csv",
+        # "pred_mordred_tr_chembertasey/pred_mordred_tr_chembertasey.csv",
+        # "pred_mordred_tr_molformer/pred_mordred_tr_molformer.csv",
+        # "pred_mordred_tr_molformer-c3-1b/pred_mordred_tr_molformer-c3-1b.csv",
+        # "pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
+        "pred_mordred_tr_rdkit/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_maccs/regression_group_perf.csv",
+        "pred_mordred_tr_morgan/regression_group_perf.csv",
+        "pred_mordred_tr_chemberta-dc/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_chemberta-sey/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_molformer-ibm/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_molformer-dc/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_tr_selformer/analysis/random_forest/regression_group_perf.csv",
+        "pred_mordred_avg_transformers/group_performance_by_task.csv",
     ]
 
     groups = [
@@ -1596,7 +1594,9 @@ if run_8:
         group_df = df.loc[df.index.isin(groups)].reindex(
             [group for group in groups if group in df.index]
         )
-        print(group_df.to_string() if not group_df.empty else "No requested groups found")
+        print(
+            group_df.to_string() if not group_df.empty else "No requested groups found"
+        )
         missing = [group for group in groups if group not in df.index]
         if missing:
             print(f"Missing groups: {', '.join(missing)}")
@@ -1629,7 +1629,10 @@ if run_8:
     present_groups = [group for group in groups if group in plot_df["group"].values]
     model_order = plot_df["model"].drop_duplicates().tolist()
     import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "visualisation"))
+
+    sys.path.insert(
+        0, str(Path(__file__).resolve().parents[1] / "src" / "visualisation")
+    )
     from vis import Visualise
 
     visualiser = Visualise()
@@ -1658,15 +1661,19 @@ if run_8:
         width = min(0.85 / n_bars, 0.16)
         offsets = (np.arange(n_bars) - (n_bars - 1) / 2) * width
         for offset, row in zip(offsets, group_scores.itertuples()):
-            ax.bar(group_i + offset, row.Pearson_r, width,
-                   color=colours[row.model])
+            ax.bar(group_i + offset, row.Pearson_r, width, color=colours[row.model])
     ax.set_xticks(range(len(present_groups)), present_groups, rotation=45, ha="right")
     ax.set_xlabel("Descriptor group")
     ax.set_ylabel("Mean Pearson r")
     ax.set_title("Mordred descriptor group prediction performance")
     from matplotlib.patches import Patch
-    ax.legend(handles=[Patch(color=colours[name], label=name) for name in model_order],
-              title="Training feature set", bbox_to_anchor=(1.02, 1), loc="upper left")
+
+    ax.legend(
+        handles=[Patch(color=colours[name], label=name) for name in model_order],
+        title="Training feature set",
+        bbox_to_anchor=(1.02, 1),
+        loc="upper left",
+    )
     fig.tight_layout()
     output = Path(std_path) / "selected_group_pearson_by_group.png"
     fig.savefig(output, dpi=300, bbox_inches="tight")
@@ -1837,25 +1844,41 @@ if run_11:
 
     results_root = Path("/users/yhb18174/TL_project/results")
     property_dirs = {
-        "pKa": "PKA_predictions_rf", "Boiling Point": "BP_predictions_rf",
-        "pKa basic": "PKA_P1B_predictions_rf", "pKa acidic": "PKA_P1A_predictions_rf",
-        "pIC50": "PIC50_predictions_rf", "log(LD50)": "LOG_LD50_predictions_rf",
-        "logD": "LOGD_predictions_rf", "Hole R.E.": "HOLE_RE_predictions_rf",
+        "pKa": "PKA_predictions_rf",
+        "Boiling Point": "BP_predictions_rf",
+        "pKa basic": "PKA_P1B_predictions_rf",
+        "pKa acidic": "PKA_P1A_predictions_rf",
+        "pIC50": "PIC50_predictions_rf",
+        "log(LD50)": "LOG_LD50_predictions_rf",
+        "logD": "LOGD_predictions_rf",
+        "Hole R.E.": "HOLE_RE_predictions_rf",
         "Electron R.E.": "ELEC_RE_predictions_rf",
         "EGFR pIC50": "EGFR_PIC50_predictions_rf",
         "Aqueous Solubility": "AQ_SOL_predictions_rf",
     }
     groups = [
-        "RingCount", "Framework", "AtomCount", "RotatableBond",
-        "TopologicalIndex", "Chi", "KappaShapeIndex", "WalkCount",
-        "PathCount", "MolecularDistanceEdge", "GeometricalIndex", "PBF", "MoRSE",
+        "RingCount",
+        "Framework",
+        "AtomCount",
+        "RotatableBond",
+        "TopologicalIndex",
+        "Chi",
+        "KappaShapeIndex",
+        "WalkCount",
+        "PathCount",
+        "MolecularDistanceEdge",
+        "GeometricalIndex",
+        "PBF",
+        "MoRSE",
     ]
     group_map = getMordredGroups()
     rows = []
     for prop, directory in property_dirs.items():
-        files = sorted((results_root / directory).glob(
-            "mordred/repeats/repeat_*/*feature_importance.csv"
-        ))
+        files = sorted(
+            (results_root / directory).glob(
+                "mordred/repeats/repeat_*/*feature_importance.csv"
+            )
+        )
         if not files:
             print(f"Skipping {prop}: no feature-importance CSVs")
             continue
@@ -1866,13 +1889,20 @@ if run_11:
             if importance.index.has_duplicates:
                 importance = importance.groupby(level=0).sum(min_count=1)
             for group in groups:
-                members = [name for name in group_map[group] if name in importance.index]
+                members = [
+                    name for name in group_map[group] if name in importance.index
+                ]
                 if members:
-                    repeat_rows.append({
-                        "property": prop, "repeat": file.parent.name,
-                        "group": group, "importance": importance.loc[members].sum(),
-                        "n_features": len(members),
-                    })
+                    repeat_rows.append(
+                        {
+                            "property": prop,
+                            "repeat": file.parent.name,
+                            "group": group,
+                            "importance": importance.loc[members].sum(),
+                            "average_importance": importance.loc[members].mean(),
+                            "n_features": len(members),
+                        }
+                    )
         if not repeat_rows:
             print(f"Skipping {prop}: no requested groups matched")
             continue
@@ -1883,17 +1913,26 @@ if run_11:
     if not rows:
         raise ValueError("No feature importance data found for the selected groups")
     all_repeats = pd.concat(rows, ignore_index=True)
-    all_repeats.to_csv(results_root / "mordred_group_importance_by_repeat.csv", index=False)
-    summary = (all_repeats.groupby(["property", "group"], as_index=False)
-               .agg(Importance=("importance", "mean"),
-                    SD=("importance", "std"),
-                    n_repeats=("importance", "count"),
-                    n_features=("n_features", "mean")))
-    summary.to_csv(results_root / "mordred_group_importance_by_property.csv", index=False)
+    all_repeats.to_csv(
+        results_root / "mordred_group_importance_by_repeat.csv", index=False
+    )
+    summary = all_repeats.groupby(["property", "group"], as_index=False).agg(
+        Importance=("importance", "mean"),
+        Average_Importance=("average_importance", "mean"),
+        SD=("importance", "std"),
+        Average_Importance_SD=("average_importance", "std"),
+        n_repeats=("importance", "count"),
+        n_features=("n_features", "mean"),
+    )
+    summary.to_csv(
+        results_root / "mordred_group_importance_by_property.csv", index=False
+    )
 
     pivot = summary.pivot(index="property", columns="group", values="Importance")
-    pivot = pivot.reindex(index=[p for p in property_dirs if p in pivot.index],
-                          columns=[g for g in groups if g in pivot.columns])
+    pivot = pivot.reindex(
+        index=[p for p in property_dirs if p in pivot.index],
+        columns=[g for g in groups if g in pivot.columns],
+    )
     ax = pivot.plot.bar(figsize=(max(14, len(pivot) * 1.4), 7), width=0.85)
     ax.set_xlabel("Property")
     ax.set_ylabel("Mean feature importance across repeats")
@@ -1904,3 +1943,19 @@ if run_11:
     ax.figure.savefig(output, dpi=300, bbox_inches="tight")
     plt.close(ax.figure)
     print(f"Saved: {output}")
+
+    average_pivot = summary.pivot(
+        index="property", columns="group", values="Average_Importance"
+    ).reindex(index=pivot.index, columns=pivot.columns)
+    ax = average_pivot.plot.bar(
+        figsize=(max(14, len(average_pivot) * 1.4), 7), width=0.85
+    )
+    ax.set_xlabel("Property")
+    ax.set_ylabel("Mean feature importance per descriptor across repeats")
+    ax.set_title("Average Mordred descriptor importance by group")
+    ax.legend(title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left")
+    ax.figure.tight_layout()
+    average_output = results_root / "mordred_group_average_importance_by_property.png"
+    ax.figure.savefig(average_output, dpi=300, bbox_inches="tight")
+    plt.close(ax.figure)
+    print(f"Saved: {average_output}")
