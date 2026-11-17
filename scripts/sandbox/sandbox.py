@@ -1932,34 +1932,46 @@ if run_11:
         results_root / "mordred_group_importance_by_property.csv", index=False
     )
 
-    pivot = summary.pivot(index="property", columns="group", values="Importance")
-    pivot = pivot.reindex(
-        index=[p for p in property_dirs if p in pivot.index],
-        columns=plotted_groups,
-    )
-    ax = pivot.plot.bar(figsize=(max(14, len(pivot) * 1.4), 7), width=0.85)
-    ax.set_xlabel("Property")
-    ax.set_ylabel("Mean feature importance across repeats")
-    ax.set_title("Mordred descriptor group feature importance")
-    ax.legend(title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left")
-    ax.figure.tight_layout()
-    output = results_root / "mordred_group_importance_by_property.png"
-    ax.figure.savefig(output, dpi=300, bbox_inches="tight")
-    plt.close(ax.figure)
-    print(f"Saved: {output}")
+    from matplotlib.patches import Patch
 
-    average_pivot = summary.pivot(
-        index="property", columns="group", values="Average_Importance"
-    ).reindex(index=pivot.index, columns=pivot.columns)
-    ax = average_pivot.plot.bar(
-        figsize=(max(14, len(average_pivot) * 1.4), 7), width=0.85
+    plotted_properties = [prop for prop in property_dirs if prop in set(summary["property"])]
+    colours = dict(zip(plotted_groups, plt.get_cmap("tab20").colors))
+
+    def plot_group_importance(value_column, ylabel, title, filename):
+        fig, ax = plt.subplots(figsize=(max(14, len(plotted_properties) * 1.4), 7))
+        for prop_i, prop in enumerate(plotted_properties):
+            available = summary.loc[
+                (summary["property"] == prop)
+                & summary[value_column].notna(),
+                ["group", value_column],
+            ].set_index("group").reindex(plotted_groups).dropna()
+            if available.empty:
+                continue
+            width = min(0.85 / len(available), 0.16)
+            offsets = (np.arange(len(available)) - (len(available) - 1) / 2) * width
+            for offset, (group, row) in zip(offsets, available.iterrows()):
+                ax.bar(prop_i + offset, row[value_column], width, color=colours[group])
+        ax.set_xticks(range(len(plotted_properties)), plotted_properties, rotation=45, ha="right")
+        ax.set_xlabel("Property")
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+        ax.legend(
+            handles=[Patch(color=colours[g], label=g) for g in plotted_groups],
+            title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left",
+        )
+        fig.tight_layout()
+        output = results_root / filename
+        fig.savefig(output, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        print(f"Saved: {output}")
+
+    plot_group_importance(
+        "Importance", "Mean feature importance across repeats",
+        "Mordred descriptor group feature importance",
+        "mordred_group_importance_by_property.png",
     )
-    ax.set_xlabel("Property")
-    ax.set_ylabel("Mean feature importance per descriptor across repeats")
-    ax.set_title("Average Mordred descriptor importance by group")
-    ax.legend(title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left")
-    ax.figure.tight_layout()
-    average_output = results_root / "mordred_group_average_importance_by_property.png"
-    ax.figure.savefig(average_output, dpi=300, bbox_inches="tight")
-    plt.close(ax.figure)
-    print(f"Saved: {average_output}")
+    plot_group_importance(
+        "Average_Importance", "Mean feature importance per descriptor across repeats",
+        "Average Mordred descriptor importance by group",
+        "mordred_group_average_importance_by_property.png",
+    )
