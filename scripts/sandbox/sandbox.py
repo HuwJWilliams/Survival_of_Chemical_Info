@@ -2047,7 +2047,13 @@ if run_12:
             for path in sorted(paths):
                 if path.suffix.lower() != ".csv" or not path.stem.startswith("pred_mordred_tr_"):
                     raise ValueError(f"Expected a pred_mordred_tr_<feature>.csv file: {path}")
-                train = path.stem.removeprefix("pred_mordred_tr_")
+                # Older files can use a shortened filename (e.g. molformer.csv
+                # inside pred_mordred_tr_molformer-dc); prefer the experiment folder.
+                experiment_name = next(
+                    (parent.name for parent in path.parents
+                     if parent.name.startswith("pred_mordred_tr_")), path.stem
+                )
+                train = experiment_name.removeprefix("pred_mordred_tr_")
                 if train == "avg" or train.startswith("avg_"):
                     continue
                 if train in seen_features:
@@ -2263,7 +2269,8 @@ if run_12:
         "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/mordred_descriptor_selection"
     )
     metric = "r2"  # Higher is better; alternatively use "Pearson_r".
-    histogram_models = ["svr", "ridge"]  # Add "rf_fixed_hp" to compare all three.
+    histogram_models = ["rf_fixed_hp"]  # Add "svr" / "ridge" when their source CSVs are configured.
+    histogram_feature_sets = ["rdkit", "maccs", "molformer-dc"]
     histogram_bins = 30
 
     selected, summary, audit = run_selection(
@@ -2274,49 +2281,73 @@ if run_12:
         total=250,  # Unique descriptors; group quotas follow full Mordred proportions.
     )
 
-    # Each descriptor contributes once per plotted model, using its mean score
-    # across that model's available training feature sets. Shared bins retain
-    # the full score range, including negative R2 values.
+    # Compare original per-experiment scores, not averages across feature sets.
+    # Normalize each panel to 100% so differing descriptor counts are comparable.
     if histogram_models:
         import matplotlib.pyplot as plt
 
         if len(set(histogram_models)) != len(histogram_models):
             raise ValueError("histogram_models must not contain duplicate models")
+        if not histogram_feature_sets or len(set(histogram_feature_sets)) != len(histogram_feature_sets):
+            raise ValueError("Choose a nonempty list of unique histogram_feature_sets")
         unknown = set(histogram_models) - set(sources)
         if unknown:
             raise ValueError(f"Unknown histogram models: {sorted(unknown)}")
-        distributions = [
-            selected[f"{model}_mean"].dropna().to_numpy()
-            for model in histogram_models
-        ]
-        bin_edges = np.histogram_bin_edges(
-            np.concatenate(distributions), bins=histogram_bins
-        )
-        labels = {"svr": "SVR", "ridge": "Ridge", "rf_fixed_hp": "RF (fixed HP)"}
-        colours = {"svr": "#4477AA", "ridge": "#EE6677", "rf_fixed_hp": "#228833"}
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.hist(
-            distributions,
-            bins=bin_edges,
-            stacked=True,
-            label=[f"{labels.get(model, model)} (n={len(values)})"
-                   for model, values in zip(histogram_models, distributions)],
-            color=[colours.get(model, "#999999") for model in histogram_models],
-            edgecolor="white",
-            linewidth=0.5,
-        )
-        ax.set_xlabel(f"Mean {metric} across training feature sets")
-        ax.set_ylabel("Descriptor–model count")
-        ax.set_title(f"Prediction performance of {len(selected)} selected Mordred descriptors")
-        ax.legend(title="Prediction model", frameon=False)
-        ax.spines[["top", "right"]].set_visible(False)
-        fig.tight_layout()
-        plot_path = output_dir / f"selected_descriptors_{metric}_stacked_histogram.png"
-        fig.savefig(plot_path, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        # Export separate (not cumulative) counts for each stacked component.
-        counts = pd.DataFrame({"bin_left": bin_edges[:-1], "bin_right": bin_edges[1:]})
-        for model, values in zip(histogram_models, distributions):
-            counts[model] = np.histogram(values, bins=bin_edges)[0]
-        counts.to_csv(plot_path.with_suffix(".csv"), index=False)
-        print(f"Saved: {plot_path}")
+        observations = pd.read_csv(output_dir / "descriptor_observations.csv")
+        selected_names = set(selected["descriptor"])
+        model_labels = {"svr": "SVR", "ridge": "Ridge", "rf_fixed_hp": "RF (fixed HP)"}
+        colours = plt.get_cmap("tab10")(np.arange(len(histogram_feature_sets)) % 10)
+        for model in histogram_models:
+            model_data = observations.loc[observations["model"] == model]
+            missing = set(histogram_feature_sets) - set(model_data["feature_set"])
+            if missing:
+                print(f"Skipping {model} histogram: add source CSVs for {sorted(missing)}")
+                continue
+            full_distributions, selected_distributions = [], []
+            for feature in histogram_feature_sets:
+                feature_data = model_data.loc[model_data["feature_set"] == feature]
+                full_distributions.append(feature_data["score"].to_numpy())
+                selected_distributions.append(
+                    feature_data.loc[feature_data["descriptor"].isin(selected_names), "score"].to_numpy()
+                )
+            if any(len(values) == 0 for values in selected_distributions):
+                print(f"Skipping {model} histogram: no selected scores for one or more feature sets")
+                continue
+            # Use identical edges and axes, including all finite negative R2 scores.
+            bin_edges = np.histogram_bin_edges(
+                np.concatenate(full_distributions), bins=histogram_bins
+            )
+            fig, axes = plt.subplots(1, 2, figsize=(15, 6), sharex=True, sharey=True)
+            count_rows = []
+            for ax, panel, distributions in zip(
+                axes, ["All available descriptors", f"Selected descriptors (set size {len(selected)})"],
+                [full_distributions, selected_distributions],
+            ):
+                total_scores = sum(len(values) for values in distributions)
+                ax.hist(
+                    distributions, bins=bin_edges, stacked=True,
+                    weights=[np.full(len(values), 100.0 / total_scores) for values in distributions],
+                    label=[f"{feature} (n={len(values)})"
+                           for feature, values in zip(histogram_feature_sets, distributions)],
+                    color=colours, edgecolor="white", linewidth=0.5,
+                )
+                ax.set_title(panel)
+                ax.set_xlabel(f"{metric} per descriptor")
+                ax.legend(title="Training feature set", frameon=False)
+                ax.spines[["top", "right"]].set_visible(False)
+                for feature, values in zip(histogram_feature_sets, distributions):
+                    counts = np.histogram(values, bins=bin_edges)[0]
+                    for left, right, count in zip(bin_edges[:-1], bin_edges[1:], counts):
+                        count_rows.append(dict(
+                            panel=panel, feature_set=feature, bin_left=left, bin_right=right,
+                            count=int(count), panel_percent=100.0 * count / total_scores,
+                            feature_percent=100.0 * count / len(values), n_descriptors=len(values),
+                        ))
+            axes[0].set_ylabel("Percentage of descriptor-feature scores")
+            fig.suptitle(f"{model_labels.get(model, model)}: full vs selected performance distributions")
+            fig.tight_layout()
+            plot_path = output_dir / f"{model}_{metric}_full_vs_selected_stacked_histogram.png"
+            fig.savefig(plot_path, dpi=300, bbox_inches="tight")
+            plt.close(fig)
+            pd.DataFrame(count_rows).to_csv(plot_path.with_suffix(".csv"), index=False)
+            print(f"Saved: {plot_path}")
