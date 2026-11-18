@@ -2038,20 +2038,37 @@ if run_12:
         for model, patterns in sources.items():
             paths = set()
             for pattern in patterns:
-                matches = [Path(p).resolve() for p in glob(str(pattern)) if Path(p).is_file()]
+                matches = [
+                    Path(p).resolve() for p in glob(str(pattern)) if Path(p).is_file()
+                ]
                 if not matches:
-                    manifest.append(dict(model=model, feature_set="", path=str(pattern),
-                                         status="missing", n_scores=0))
+                    manifest.append(
+                        dict(
+                            model=model,
+                            feature_set="",
+                            path=str(pattern),
+                            status="missing",
+                            n_scores=0,
+                        )
+                    )
                 paths.update(matches)
             seen_features = {}
             for path in sorted(paths):
-                if path.suffix.lower() != ".csv" or not path.stem.startswith("pred_mordred_tr_"):
-                    raise ValueError(f"Expected a pred_mordred_tr_<feature>.csv file: {path}")
+                if path.suffix.lower() != ".csv" or not path.stem.startswith(
+                    "pred_mordred_tr_"
+                ):
+                    raise ValueError(
+                        f"Expected a pred_mordred_tr_<feature>.csv file: {path}"
+                    )
                 # Older files can use a shortened filename (e.g. molformer.csv
                 # inside pred_mordred_tr_molformer-dc); prefer the experiment folder.
                 experiment_name = next(
-                    (parent.name for parent in path.parents
-                     if parent.name.startswith("pred_mordred_tr_")), path.stem
+                    (
+                        parent.name
+                        for parent in path.parents
+                        if parent.name.startswith("pred_mordred_tr_")
+                    ),
+                    path.stem,
                 )
                 train = experiment_name.removeprefix("pred_mordred_tr_")
                 if train == "avg" or train.startswith("avg_"):
@@ -2095,7 +2112,9 @@ if run_12:
                     for name, value in scores.items()
                 )
             if not any(row["model"] == model for row in rows):
-                raise ValueError(f"No finite regression {metric} scores for {model}; check sources: {patterns}")
+                raise ValueError(
+                    f"No finite regression {metric} scores for {model}; check sources: {patterns}"
+                )
         return pd.DataFrame(rows), pd.DataFrame(manifest)
 
     def summarise_performance(observations, group_map, models):
@@ -2257,12 +2276,12 @@ if run_12:
         "rf_fixed_hp": [
             "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
             "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
-            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
-            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_molformer-dc/pred_mordred_tr_molformer.csv",
-            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_molformer-ibm/pred_mordred_tr_molformer-ibm.csv",
-            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_chemberta-dc/pred_mordred_tr_chemberta-dc.csv",
-            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_chemberta-sey/pred_mordred_tr_chemberta-sey.csv",
-            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_rdkit/random_forest/pred_mordred_tr_rdkit.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_molformer-dc/random_forest/pred_mordred_tr_molformer.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_molformer-ibm/random_forest/pred_mordred_tr_molformer-ibm.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_chemberta-dc/random_forest/pred_mordred_tr_chemberta-dc.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_chemberta-sey/random_forest/pred_mordred_tr_chemberta-sey.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_selformer/random_forest/pred_mordred_tr_selformer.csv",
         ],
     }
     output_dir = Path(
@@ -2272,9 +2291,9 @@ if run_12:
     # Legend label -> exact CSV path. These files are independent of selection sources.
     # Set to {} to skip plotting. Descriptor names must be in the first column.
     histogram_csvs = {
-        "RDKit": "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
+        "RDKit": "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_rdkit/random_forest/pred_mordred_tr_rdkit.csv",
         "MACCS": "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
-        "MolFormer-DC": "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_molformer-dc/pred_mordred_tr_molformer.csv",
+        "MolFormer-DC": "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_molformer-dc/random_forest/pred_mordred_tr_molformer-dc.csv",
     }
     histogram_bins = 30
 
@@ -2302,28 +2321,48 @@ if run_12:
             scores = scores.replace([np.inf, -np.inf], np.nan).dropna()
             scores.index = scores.index.astype(str)
             if scores.index.has_duplicates:
-                raise ValueError(f"Duplicate descriptors in {csv_path}; choose a single-model performance CSV")
+                raise ValueError(
+                    f"Duplicate descriptors in {csv_path}; choose a single-model performance CSV"
+                )
             subset = scores.loc[scores.index.isin(selected_names)]
             if scores.empty or subset.empty:
-                raise ValueError(f"No finite scores or no selected descriptors found in histogram CSV: {csv_path}")
+                raise ValueError(
+                    f"No finite scores or no selected descriptors found in histogram CSV: {csv_path}"
+                )
             full_distributions.append(scores.to_numpy())
             selected_distributions.append(subset.to_numpy())
 
         # Shared edges cover all finite scores, including negative R2 values.
-        bin_edges = np.histogram_bin_edges(np.concatenate(full_distributions), bins=histogram_bins)
+        bin_edges = np.histogram_bin_edges(
+            np.concatenate(full_distributions), bins=histogram_bins
+        )
         colours = plt.get_cmap("tab10")(np.arange(len(histogram_csvs)) % 10)
         fig, axes = plt.subplots(1, 2, figsize=(15, 6), sharex=True, sharey=True)
         count_rows = []
         for ax, panel, distributions in zip(
-            axes, ["All available descriptors", f"Selected descriptors (set size {len(selected)})"],
+            axes,
+            [
+                "All available descriptors",
+                f"Selected descriptors (set size {len(selected)})",
+            ],
             [full_distributions, selected_distributions],
         ):
             total_scores = sum(len(values) for values in distributions)
             ax.hist(
-                distributions, bins=bin_edges, stacked=True,
-                weights=[np.full(len(values), 100.0 / total_scores) for values in distributions],
-                label=[f"{label} (n={len(values)})" for label, values in zip(histogram_csvs, distributions)],
-                color=colours, edgecolor="white", linewidth=0.5,
+                distributions,
+                bins=bin_edges,
+                stacked=True,
+                weights=[
+                    np.full(len(values), 100.0 / total_scores)
+                    for values in distributions
+                ],
+                label=[
+                    f"{label} (n={len(values)})"
+                    for label, values in zip(histogram_csvs, distributions)
+                ],
+                color=colours,
+                edgecolor="white",
+                linewidth=0.5,
             )
             ax.set_title(panel)
             ax.set_xlabel(f"{metric} per descriptor")
@@ -2332,12 +2371,19 @@ if run_12:
             for label, values in zip(histogram_csvs, distributions):
                 counts = np.histogram(values, bins=bin_edges)[0]
                 for left, right, count in zip(bin_edges[:-1], bin_edges[1:], counts):
-                    count_rows.append(dict(
-                        panel=panel, label=label, source_csv=str(histogram_csvs[label]),
-                        bin_left=left, bin_right=right, count=int(count),
-                        panel_percent=100.0 * count / total_scores,
-                        source_percent=100.0 * count / len(values), n_descriptors=len(values),
-                    ))
+                    count_rows.append(
+                        dict(
+                            panel=panel,
+                            label=label,
+                            source_csv=str(histogram_csvs[label]),
+                            bin_left=left,
+                            bin_right=right,
+                            count=int(count),
+                            panel_percent=100.0 * count / total_scores,
+                            source_percent=100.0 * count / len(values),
+                            n_descriptors=len(values),
+                        )
+                    )
         axes[0].set_ylabel("Percentage of descriptor-CSV scores")
         fig.suptitle("Full vs selected descriptor performance distributions")
         fig.tight_layout()
