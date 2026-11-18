@@ -2422,12 +2422,9 @@ if run_13:
     import sys
     from pathlib import Path
 
-    from pathlib import Path
+    sys.path.insert(0, "/users/yhb18174/TL_project/scripts/src/visualisation")
+    from vis import Visualise
 
-    vis_dir = Path("/users/yhb18174/TL_project/scripts/src/visualisation")
-
-    print("Directory exists:", vis_dir.exists())
-    print("Python files:", list(vis_dir.glob("*.py")))
     v = Visualise()
 
     # Load full descriptor dataset
