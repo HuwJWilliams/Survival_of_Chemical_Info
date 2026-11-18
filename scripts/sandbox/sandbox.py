@@ -2364,34 +2364,52 @@ if run_12:
         import re
 
         for file_number, ((label, csv_path), full_values, selected_values) in enumerate(
-            zip(histogram_csvs.items(), full_distributions, selected_distributions), start=1
+            zip(histogram_csvs.items(), full_distributions, selected_distributions),
+            start=1,
         ):
             fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharex=True, sharey=True)
             count_rows = []
             for ax, panel, values, colour in zip(
-                axes, ["All available descriptors", "Selected descriptors"],
-                [full_values, selected_values], ["#4477AA", "#EE6677"],
+                axes,
+                ["All available descriptors", "Selected descriptors"],
+                [full_values, selected_values],
+                ["#4477AA", "#EE6677"],
             ):
                 ax.hist(
-                    values, bins=bin_edges,
+                    values,
+                    bins=bin_edges,
                     weights=np.full(len(values), 100.0 / len(values)),
-                    color=colour, edgecolor="white", linewidth=0.5,
+                    color=colour,
+                    edgecolor="white",
+                    linewidth=0.5,
                 )
                 ax.set_title(f"{panel} (n={len(values)})")
                 ax.set_xlabel(f"{metric} per descriptor")
                 ax.spines[["top", "right"]].set_visible(False)
                 counts = np.histogram(values, bins=bin_edges)[0]
                 for left, right, count in zip(bin_edges[:-1], bin_edges[1:], counts):
-                    count_rows.append(dict(
-                        panel=panel, label=label, source_csv=str(csv_path),
-                        bin_left=left, bin_right=right, count=int(count),
-                        percent=100.0 * count / len(values), n_descriptors=len(values),
-                    ))
+                    count_rows.append(
+                        dict(
+                            panel=panel,
+                            label=label,
+                            source_csv=str(csv_path),
+                            bin_left=left,
+                            bin_right=right,
+                            count=int(count),
+                            percent=100.0 * count / len(values),
+                            n_descriptors=len(values),
+                        )
+                    )
             axes[0].set_ylabel("Percentage of descriptors")
             fig.suptitle(f"{label}: full vs selected performance distributions")
             fig.tight_layout()
-            safe_label = re.sub(r"[^A-Za-z0-9_-]+", "_", str(label)).strip("_") or "histogram"
-            plot_path = output_dir / f"{file_number:02d}_{safe_label}_{metric}_full_vs_selected_histogram.png"
+            safe_label = (
+                re.sub(r"[^A-Za-z0-9_-]+", "_", str(label)).strip("_") or "histogram"
+            )
+            plot_path = (
+                output_dir
+                / f"{file_number:02d}_{safe_label}_{metric}_full_vs_selected_histogram.png"
+            )
             fig.savefig(plot_path, dpi=300, bbox_inches="tight")
             plt.close(fig)
             pd.DataFrame(count_rows).to_csv(plot_path.with_suffix(".csv"), index=False)
@@ -2404,15 +2422,16 @@ if run_13:
     import sys
     from pathlib import Path
 
-    sys.path.insert(0, "/users/yhb18174/TL_Project/scripts/src/visualisation")
-    from vis import Visualise
+    from pathlib import Path
 
+    vis_dir = Path("/users/yhb18174/TL_Project/scripts/src/visualisation")
+
+    print("Directory exists:", vis_dir.exists())
+    print("Python files:", list(vis_dir.glob("*.py")))
     v = Visualise()
 
     # Load full descriptor dataset
-    full_df = pd.read_csv(
-        "/users/yhb18174/TL_project/datasets/all/all_rdkit.csv"
-    )
+    full_df = pd.read_csv("/users/yhb18174/TL_project/datasets/all/all_rdkit.csv")
 
     # Randomly select 5,000 molecules
     subset_df = full_df.sample(n=5000, random_state=42).copy()
