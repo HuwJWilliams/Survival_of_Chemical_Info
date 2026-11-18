@@ -2305,6 +2305,10 @@ if run_12:
         total=250,  # Unique descriptors; group quotas follow full Mordred proportions.
     )
 
+    # Optional model filters keyed by the same legend labels as histogram_csvs.
+    # Otherwise use the CSV's model directory, or its sole non-null model label.
+    histogram_model_filters = {}  # Example: {"MolFormer-DC": "random_forest"}
+
     # Compare the same CSVs before and after filtering to selected descriptors.
     if histogram_csvs:
         import matplotlib.pyplot as plt
@@ -2315,14 +2319,34 @@ if run_12:
             frame = pd.read_csv(csv_path, index_col=0)
             if "task_type" in frame:
                 frame = frame.loc[frame["task_type"] == "regression"]
+            if "model" in frame:
+                models = frame["model"].dropna().unique().tolist()
+                chosen_model = histogram_model_filters.get(label)
+                if chosen_model is None:
+                    folder_model = Path(csv_path).parent.name
+                    if folder_model in models:
+                        chosen_model = folder_model
+                    elif len(models) == 1:
+                        chosen_model = models[0]
+                    elif len(models) > 1:
+                        raise ValueError(
+                            f"Multiple models in {csv_path}: {models}. Set "
+                            f"histogram_model_filters[{label!r}] to the model to plot."
+                        )
+                if chosen_model is not None:
+                    frame = frame.loc[frame["model"] == chosen_model]
+                    print(f"Histogram {label}: using model {chosen_model}")
             if metric not in frame:
                 raise ValueError(f"Missing {metric!r} in histogram CSV: {csv_path}")
             scores = pd.to_numeric(frame[metric], errors="coerce")
             scores = scores.replace([np.inf, -np.inf], np.nan).dropna()
             scores.index = scores.index.astype(str)
             if scores.index.has_duplicates:
-                raise ValueError(
-                    f"Duplicate descriptors in {csv_path}; choose a single-model performance CSV"
+                n_rows = len(scores)
+                scores = scores.groupby(level=0, sort=False).mean()
+                print(
+                    f"Histogram {label}: averaged {n_rows} finite score rows into "
+                    f"{len(scores)} unique descriptors in {csv_path}"
                 )
             subset = scores.loc[scores.index.isin(selected_names)]
             if scores.empty or subset.empty:
@@ -2332,63 +2356,42 @@ if run_12:
             full_distributions.append(scores.to_numpy())
             selected_distributions.append(subset.to_numpy())
 
-        # Shared edges cover all finite scores, including negative R2 values.
+        # Shared edges across files and panels retain all finite negative R2 values.
         bin_edges = np.histogram_bin_edges(
             np.concatenate(full_distributions), bins=histogram_bins
         )
-        colours = plt.get_cmap("tab10")(np.arange(len(histogram_csvs)) % 10)
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6), sharex=True, sharey=True)
-        count_rows = []
-        for ax, panel, distributions in zip(
-            axes,
-            [
-                "All available descriptors",
-                f"Selected descriptors (set size {len(selected)})",
-            ],
-            [full_distributions, selected_distributions],
+        import re
+
+        for file_number, ((label, csv_path), full_values, selected_values) in enumerate(
+            zip(histogram_csvs.items(), full_distributions, selected_distributions), start=1
         ):
-            total_scores = sum(len(values) for values in distributions)
-            ax.hist(
-                distributions,
-                bins=bin_edges,
-                stacked=True,
-                weights=[
-                    np.full(len(values), 100.0 / total_scores)
-                    for values in distributions
-                ],
-                label=[
-                    f"{label} (n={len(values)})"
-                    for label, values in zip(histogram_csvs, distributions)
-                ],
-                color=colours,
-                edgecolor="white",
-                linewidth=0.5,
-            )
-            ax.set_title(panel)
-            ax.set_xlabel(f"{metric} per descriptor")
-            ax.legend(title="Prediction CSV", frameon=False)
-            ax.spines[["top", "right"]].set_visible(False)
-            for label, values in zip(histogram_csvs, distributions):
+            fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharex=True, sharey=True)
+            count_rows = []
+            for ax, panel, values, colour in zip(
+                axes, ["All available descriptors", "Selected descriptors"],
+                [full_values, selected_values], ["#4477AA", "#EE6677"],
+            ):
+                ax.hist(
+                    values, bins=bin_edges,
+                    weights=np.full(len(values), 100.0 / len(values)),
+                    color=colour, edgecolor="white", linewidth=0.5,
+                )
+                ax.set_title(f"{panel} (n={len(values)})")
+                ax.set_xlabel(f"{metric} per descriptor")
+                ax.spines[["top", "right"]].set_visible(False)
                 counts = np.histogram(values, bins=bin_edges)[0]
                 for left, right, count in zip(bin_edges[:-1], bin_edges[1:], counts):
-                    count_rows.append(
-                        dict(
-                            panel=panel,
-                            label=label,
-                            source_csv=str(histogram_csvs[label]),
-                            bin_left=left,
-                            bin_right=right,
-                            count=int(count),
-                            panel_percent=100.0 * count / total_scores,
-                            source_percent=100.0 * count / len(values),
-                            n_descriptors=len(values),
-                        )
-                    )
-        axes[0].set_ylabel("Percentage of descriptor-CSV scores")
-        fig.suptitle("Full vs selected descriptor performance distributions")
-        fig.tight_layout()
-        plot_path = output_dir / f"{metric}_full_vs_selected_stacked_histogram.png"
-        fig.savefig(plot_path, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        pd.DataFrame(count_rows).to_csv(plot_path.with_suffix(".csv"), index=False)
-        print(f"Saved: {plot_path}")
+                    count_rows.append(dict(
+                        panel=panel, label=label, source_csv=str(csv_path),
+                        bin_left=left, bin_right=right, count=int(count),
+                        percent=100.0 * count / len(values), n_descriptors=len(values),
+                    ))
+            axes[0].set_ylabel("Percentage of descriptors")
+            fig.suptitle(f"{label}: full vs selected performance distributions")
+            fig.tight_layout()
+            safe_label = re.sub(r"[^A-Za-z0-9_-]+", "_", str(label)).strip("_") or "histogram"
+            plot_path = output_dir / f"{file_number:02d}_{safe_label}_{metric}_full_vs_selected_histogram.png"
+            fig.savefig(plot_path, dpi=300, bbox_inches="tight")
+            plt.close(fig)
+            pd.DataFrame(count_rows).to_csv(plot_path.with_suffix(".csv"), index=False)
+            print(f"Saved: {plot_path}")
