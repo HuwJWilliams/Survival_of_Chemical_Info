@@ -13,6 +13,7 @@ run_8 = False
 run_11 = True  # Mordred group importance across properties
 run_9 = False  # MoeType Pearson r SD across descriptors, excluding LabuteASA
 run_10 = False  # Property prediction comparison plot
+run_12 = False  # Group-balanced Mordred selection across SVR, ridge and fixed-HP RF
 
 if any((run_1, run_2, run_3, run_4, run_5, run_6, run_7, run_8, run_11)):
     import matplotlib.pyplot as plt
@@ -1981,4 +1982,224 @@ if run_11:
         "Average_Importance", "Mean feature importance per descriptor across repeats",
         "Average Mordred descriptor importance by group",
         "mordred_group_average_importance_by_property.png",
+    )
+
+
+
+if run_12:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "datasets"))
+    from group_descriptors import getMordredGroups
+    """Select group-balanced Mordred panels from CFP performance CSVs.
+
+    Scores are averaged over feature sets within each model, then equally over
+    models. Variance is the population variance of those scores with the same
+    weights (not variance of molecular values or the CSV's resampling SD).
+    """
+
+    from pathlib import Path
+
+    import numpy as np
+    import pandas as pd
+
+
+    LEVELS = {
+        "worst": 0.0,
+        "lower_quartile": 0.25,
+        "median": 0.5,
+        "upper_quartile": 0.75,
+        "best": 1.0,
+        "low_variance": None,
+        "high_variance": None,
+    }
+
+
+    def load_performance(sources, metric="r2"):
+        """sources maps model labels to (experiment root, model folder or None).
+
+        Only direct pred_mordred_tr_* experiments are read, never analysis or
+        averaged outputs. RF may use random_forest/ or legacy experiment CSVs.
+        Unlabelled CSVs are identified by these explicitly configured locations.
+        """
+        rows, manifest = [], []
+        for model, (root, folder) in sources.items():
+            root = Path(root)
+            if not root.is_dir():
+                raise FileNotFoundError(f"Missing {model} results root: {root}")
+            for experiment in sorted(root.glob("pred_mordred_tr_*")):
+                if not experiment.is_dir():
+                    continue
+                train = experiment.name.removeprefix("pred_mordred_tr_")
+                if train == "avg" or train.startswith("avg_"):
+                    continue
+                filename = f"{experiment.name}.csv"
+                path = experiment / folder / filename if folder else experiment / filename
+                if not path.is_file() and model == "rf_fixed_hp":
+                    path = experiment / filename
+                if not path.is_file():
+                    manifest.append(dict(model=model, feature_set=train, path=str(path),
+                                         status="missing", n_scores=0))
+                    continue
+                frame = pd.read_csv(path, index_col=0)
+                if "model" in frame:
+                    expected = "random_forest" if model == "rf_fixed_hp" else model
+                    frame = frame.loc[frame["model"] == expected]
+                if "task_type" in frame:
+                    frame = frame.loc[frame["task_type"] == "regression"]
+                if metric not in frame:
+                    raise ValueError(f"Missing metric {metric!r} in {path}")
+                scores = pd.to_numeric(frame[metric], errors="coerce")
+                scores = scores.replace([np.inf, -np.inf], np.nan).dropna()
+                scores.index = scores.index.astype(str)
+                if scores.index.has_duplicates:
+                    raise ValueError(f"Duplicate descriptor rows in {path}")
+                manifest.append(dict(model=model, feature_set=train, path=str(path),
+                                     status="loaded", n_scores=len(scores)))
+                rows.extend(dict(descriptor=name, model=model, feature_set=train,
+                                 score=value, path=str(path))
+                            for name, value in scores.items())
+            if not any(row["model"] == model for row in rows):
+                raise ValueError(f"No finite regression {metric} scores for {model} in {root}")
+        return pd.DataFrame(rows), pd.DataFrame(manifest)
+
+
+    def summarise_performance(observations, group_map, models):
+        """Retain coverage for every observed descriptor; require all models to select."""
+        owners = {}
+        for group, members in group_map.items():
+            for member in members:
+                if member in owners and owners[member] != group:
+                    raise ValueError(f"Descriptor belongs to multiple groups: {member}")
+                owners[member] = group
+        data = observations.assign(score_squared=observations["score"] ** 2)
+        by_model = data.groupby(["descriptor", "model"]).agg(
+            mean_score=("score", "mean"), mean_square=("score_squared", "mean"),
+            n_feature_sets=("feature_set", "nunique"),
+        )
+        summary = by_model.groupby("descriptor").agg(
+            mean_score=("mean_score", "mean"), mean_square=("mean_square", "mean"),
+            n_models=("mean_score", "count"), n_scores=("n_feature_sets", "sum"),
+        )
+        summary["performance_variance"] = (
+            summary.pop("mean_square") - summary["mean_score"] ** 2
+        ).clip(lower=0)
+        summary["performance_sd"] = np.sqrt(summary["performance_variance"])
+        for model in models:
+            model_rows = by_model.xs(model, level="model")
+            summary[f"{model}_mean"] = model_rows["mean_score"]
+            summary[f"{model}_n_feature_sets"] = model_rows["n_feature_sets"]
+        summary["group"] = summary.index.map(owners)
+        summary["eligible"] = summary["group"].notna() & (summary["n_models"] == len(models))
+        return summary.reset_index()
+
+
+    def allocate_quotas(group_map, eligible, total):
+        """Proportional allocation with availability caps and deterministic rounding."""
+        if total <= 0:
+            raise ValueError("Selection size must be positive")
+        sizes = {group: len(set(members)) for group, members in group_map.items()}
+        capacity = eligible.groupby("group").size().to_dict()
+        quotas = dict.fromkeys(sizes, 0)
+        target = min(total, len(eligible))
+        denominator = sum(sizes.values())
+        ideals = {group: target * size / denominator for group, size in sizes.items()}
+        for _ in range(target):
+            available = [g for g in sizes if quotas[g] < capacity.get(g, 0)]
+            group = min(available, key=lambda g: (-(ideals[g] - quotas[g]), g))
+            quotas[group] += 1
+        return quotas
+
+
+    def choose_descriptor(pool, reference, category):
+        if category in ("low_variance", "high_variance"):
+            return pool.sort_values(
+                ["performance_variance", "descriptor"],
+                ascending=[category == "low_variance", True],
+            ).iloc[0]
+        target = reference["mean_score"].quantile(LEVELS[category])
+        return pool.assign(distance=(pool["mean_score"] - target).abs()).sort_values(
+            ["distance", "descriptor"]
+        ).iloc[0].drop(labels="distance")
+
+
+    def select_panels(summary, group_map, total=250):
+        """Return unique proportional set, per-group examples, and group audit.
+
+        Examples may repeat a descriptor across criteria in small groups. The final
+        set is unique; quotas below seven cannot cover all seven criteria. Larger
+        quotas cycle through criteria, taking the nearest remaining descriptor.
+        """
+        eligible = summary.loc[summary["eligible"]].copy()
+        if eligible.empty:
+            raise ValueError("No grouped descriptors have scores from all requested models")
+        quotas = allocate_quotas(group_map, eligible, total)
+        selected, examples = [], []
+        categories = list(LEVELS)
+        for group_number, (group, reference) in enumerate(eligible.groupby("group", sort=True)):
+            for category in categories:
+                row = choose_descriptor(reference, reference, category).to_dict()
+                examples.append(dict(row, category=category))
+            pool = reference.copy()
+            # Rotate starting criteria so small groups do not all select the worst.
+            for i in range(quotas[group]):
+                category = categories[(i + group_number) % len(categories)]
+                row = choose_descriptor(pool, reference, category)
+                selected.append(dict(row, category=category))
+                pool = pool.loc[pool["descriptor"] != row["descriptor"]]
+        selected = pd.DataFrame(selected)
+        audit = pd.DataFrame({"group": list(group_map),
+                              "full_count": [len(set(v)) for v in group_map.values()]})
+        audit["eligible_count"] = audit["group"].map(eligible.groupby("group").size()).fillna(0).astype(int)
+        audit["selected_count"] = audit["group"].map(quotas)
+        audit["full_fraction"] = audit["full_count"] / audit["full_count"].sum()
+        audit["selected_fraction"] = audit["selected_count"] / len(selected)
+        audit["fraction_difference"] = audit["selected_fraction"] - audit["full_fraction"]
+        return selected, pd.DataFrame(examples), audit
+
+
+    def run_selection(sources, group_map, output_dir, metric="r2", total=250):
+        observations, manifest = load_performance(sources, metric)
+        summary = summarise_performance(observations, group_map, list(sources))
+        selected, examples, audit = select_panels(summary, group_map, total)
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for name, frame in {"source_manifest": manifest, "descriptor_observations": observations,
+                            "descriptor_summary": summary, "selected_descriptors": selected,
+                            "per_group_examples": examples, "group_distribution": audit}.items():
+            frame.to_csv(output_dir / f"{name}.csv", index=False)
+        (output_dir / "selected_descriptors.txt").write_text(
+            "\n".join(selected["descriptor"]) + "\n", encoding="utf-8"
+        )
+        (output_dir / "selection_notes.txt").write_text(
+            f"Metric: {metric} (higher is better)\nRequested size: {total}\n"
+            f"Actual size: {len(selected)}\nModels: {', '.join(sources)}\n"
+            "Mean: equal feature-set weights within models, equal model weights.\n"
+            "Variance: population variance across scores with those same weights.\n"
+            "Selection requires finite regression scores from every requested model.\n"
+            "Feature-set coverage may differ; see descriptor_summary and source_manifest.\n"
+            "Quotas target full Mordred group proportions, capped by eligible counts.\n"
+            "Per-group examples can overlap; the proportional selection is unique.\n",
+            encoding="utf-8",
+        )
+        print(f"Selected {len(selected)} of {summary['eligible'].sum()} eligible descriptors: {output_dir}")
+        if (manifest["status"] == "missing").any():
+            print("Some experiments lack model CSVs; see source_manifest.csv.")
+        return selected, summary, audit
+
+    # Explicit roots avoid relying on a paths.json entry pointing at the RF run.
+    results_root = Path(
+        "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions"
+    )
+    sources = {
+        "svr": (results_root, "svr"),
+        "ridge": (results_root, "ridge"),
+        "rf_fixed_hp": (results_root / "rf_fixed_hp", "random_forest"),
+    }
+    run_selection(
+        sources=sources,
+        group_map=getMordredGroups(),
+        output_dir=results_root / "mordred_descriptor_selection",
+        metric="r2",  # Higher is better; alternatively use "Pearson_r".
+        total=250,  # Unique descriptors; group quotas follow full Mordred proportions.
     )
