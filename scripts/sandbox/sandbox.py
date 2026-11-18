@@ -10,10 +10,10 @@ run_5 = False  # Fine-tuned vs ID-trimmed base predictions
 run_6 = False  # Classification ROC/AUC curves
 run_7 = False
 run_8 = False
-run_11 = True  # Mordred group importance across properties
+run_11 = False  # Mordred group importance across properties
 run_9 = False  # MoeType Pearson r SD across descriptors, excluding LabuteASA
 run_10 = False  # Property prediction comparison plot
-run_12 = False  # Group-balanced Mordred selection across SVR, ridge and fixed-HP RF
+run_12 = True  # Group-balanced Mordred selection across SVR, ridge and fixed-HP RF
 
 if any((run_1, run_2, run_3, run_4, run_5, run_6, run_7, run_8, run_11)):
     import matplotlib.pyplot as plt
@@ -1935,25 +1935,36 @@ if run_11:
 
     from matplotlib.patches import Patch
 
-    plotted_properties = [prop for prop in property_dirs if prop in set(summary["property"])]
+    plotted_properties = [
+        prop for prop in property_dirs if prop in set(summary["property"])
+    ]
     colours = dict(zip(plotted_groups, plt.get_cmap("tab20").colors))
 
     def plot_group_importance(value_column, ylabel, title, filename):
         fig, ax = plt.subplots(figsize=(max(18, len(plotted_properties) * 1.6), 9))
         for prop_i, prop in enumerate(plotted_properties):
-            available = summary.loc[
-                (summary["property"] == prop)
-                & summary[value_column].notna(),
-                ["group", value_column],
-            ].set_index("group").reindex(plotted_groups).dropna()
+            available = (
+                summary.loc[
+                    (summary["property"] == prop) & summary[value_column].notna(),
+                    ["group", value_column],
+                ]
+                .set_index("group")
+                .reindex(plotted_groups)
+                .dropna()
+            )
             if available.empty:
                 continue
             width = min(0.85 / len(available), 0.16)
             offsets = (np.arange(len(available)) - (len(available) - 1) / 2) * width
             for offset, (group, row) in zip(offsets, available.iterrows()):
                 ax.bar(prop_i + offset, row[value_column], width, color=colours[group])
-        ax.set_xticks(range(len(plotted_properties)), plotted_properties,
-                      rotation=45, ha="right", fontsize=14)
+        ax.set_xticks(
+            range(len(plotted_properties)),
+            plotted_properties,
+            rotation=45,
+            ha="right",
+            fontsize=14,
+        )
         ax.tick_params(axis="y", labelsize=14)
         ax.set_xlabel("Property", fontsize=16)
         ax.set_ylabel(ylabel, fontsize=16)
@@ -1964,8 +1975,12 @@ if run_11:
                 Patch(color=colours[g], label=f"{g} (n={len(group_map[g])})")
                 for g in plotted_groups
             ],
-            title="Descriptor group", bbox_to_anchor=(1.02, 1), loc="upper left",
-            fontsize=13, title_fontsize=14, frameon=False,
+            title="Descriptor group",
+            bbox_to_anchor=(1.02, 1),
+            loc="upper left",
+            fontsize=13,
+            title_fontsize=14,
+            frameon=False,
         )
         fig.tight_layout()
         output = results_root / filename
@@ -1974,16 +1989,17 @@ if run_11:
         print(f"Saved: {output}")
 
     plot_group_importance(
-        "Importance", "Mean feature importance across repeats",
+        "Importance",
+        "Mean feature importance across repeats",
         "Mordred descriptor group feature importance",
         "mordred_group_importance_by_property.png",
     )
     plot_group_importance(
-        "Average_Importance", "Mean feature importance per descriptor across repeats",
+        "Average_Importance",
+        "Mean feature importance per descriptor across repeats",
         "Average Mordred descriptor importance by group",
         "mordred_group_average_importance_by_property.png",
     )
-
 
 
 if run_12:
@@ -1991,6 +2007,7 @@ if run_12:
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "datasets"))
     from group_descriptors import getMordredGroups
+
     """Select group-balanced Mordred panels from CFP performance CSVs.
 
     Scores are averaged over feature sets within each model, then equally over
@@ -2003,7 +2020,6 @@ if run_12:
     import numpy as np
     import pandas as pd
 
-
     LEVELS = {
         "worst": 0.0,
         "lower_quartile": 0.25,
@@ -2013,7 +2029,6 @@ if run_12:
         "low_variance": None,
         "high_variance": None,
     }
-
 
     def load_performance(sources, metric="r2"):
         """sources maps model labels to (experiment root, model folder or None).
@@ -2034,12 +2049,21 @@ if run_12:
                 if train == "avg" or train.startswith("avg_"):
                     continue
                 filename = f"{experiment.name}.csv"
-                path = experiment / folder / filename if folder else experiment / filename
+                path = (
+                    experiment / folder / filename if folder else experiment / filename
+                )
                 if not path.is_file() and model == "rf_fixed_hp":
                     path = experiment / filename
                 if not path.is_file():
-                    manifest.append(dict(model=model, feature_set=train, path=str(path),
-                                         status="missing", n_scores=0))
+                    manifest.append(
+                        dict(
+                            model=model,
+                            feature_set=train,
+                            path=str(path),
+                            status="missing",
+                            n_scores=0,
+                        )
+                    )
                     continue
                 frame = pd.read_csv(path, index_col=0)
                 if "model" in frame:
@@ -2054,15 +2078,30 @@ if run_12:
                 scores.index = scores.index.astype(str)
                 if scores.index.has_duplicates:
                     raise ValueError(f"Duplicate descriptor rows in {path}")
-                manifest.append(dict(model=model, feature_set=train, path=str(path),
-                                     status="loaded", n_scores=len(scores)))
-                rows.extend(dict(descriptor=name, model=model, feature_set=train,
-                                 score=value, path=str(path))
-                            for name, value in scores.items())
+                manifest.append(
+                    dict(
+                        model=model,
+                        feature_set=train,
+                        path=str(path),
+                        status="loaded",
+                        n_scores=len(scores),
+                    )
+                )
+                rows.extend(
+                    dict(
+                        descriptor=name,
+                        model=model,
+                        feature_set=train,
+                        score=value,
+                        path=str(path),
+                    )
+                    for name, value in scores.items()
+                )
             if not any(row["model"] == model for row in rows):
-                raise ValueError(f"No finite regression {metric} scores for {model} in {root}")
+                raise ValueError(
+                    f"No finite regression {metric} scores for {model} in {root}"
+                )
         return pd.DataFrame(rows), pd.DataFrame(manifest)
-
 
     def summarise_performance(observations, group_map, models):
         """Retain coverage for every observed descriptor; require all models to select."""
@@ -2074,12 +2113,15 @@ if run_12:
                 owners[member] = group
         data = observations.assign(score_squared=observations["score"] ** 2)
         by_model = data.groupby(["descriptor", "model"]).agg(
-            mean_score=("score", "mean"), mean_square=("score_squared", "mean"),
+            mean_score=("score", "mean"),
+            mean_square=("score_squared", "mean"),
             n_feature_sets=("feature_set", "nunique"),
         )
         summary = by_model.groupby("descriptor").agg(
-            mean_score=("mean_score", "mean"), mean_square=("mean_square", "mean"),
-            n_models=("mean_score", "count"), n_scores=("n_feature_sets", "sum"),
+            mean_score=("mean_score", "mean"),
+            mean_square=("mean_square", "mean"),
+            n_models=("mean_score", "count"),
+            n_scores=("n_feature_sets", "sum"),
         )
         summary["performance_variance"] = (
             summary.pop("mean_square") - summary["mean_score"] ** 2
@@ -2090,9 +2132,10 @@ if run_12:
             summary[f"{model}_mean"] = model_rows["mean_score"]
             summary[f"{model}_n_feature_sets"] = model_rows["n_feature_sets"]
         summary["group"] = summary.index.map(owners)
-        summary["eligible"] = summary["group"].notna() & (summary["n_models"] == len(models))
+        summary["eligible"] = summary["group"].notna() & (
+            summary["n_models"] == len(models)
+        )
         return summary.reset_index()
-
 
     def allocate_quotas(group_map, eligible, total):
         """Proportional allocation with availability caps and deterministic rounding."""
@@ -2110,7 +2153,6 @@ if run_12:
             quotas[group] += 1
         return quotas
 
-
     def choose_descriptor(pool, reference, category):
         if category in ("low_variance", "high_variance"):
             return pool.sort_values(
@@ -2118,10 +2160,12 @@ if run_12:
                 ascending=[category == "low_variance", True],
             ).iloc[0]
         target = reference["mean_score"].quantile(LEVELS[category])
-        return pool.assign(distance=(pool["mean_score"] - target).abs()).sort_values(
-            ["distance", "descriptor"]
-        ).iloc[0].drop(labels="distance")
-
+        return (
+            pool.assign(distance=(pool["mean_score"] - target).abs())
+            .sort_values(["distance", "descriptor"])
+            .iloc[0]
+            .drop(labels="distance")
+        )
 
     def select_panels(summary, group_map, total=250):
         """Return unique proportional set, per-group examples, and group audit.
@@ -2132,11 +2176,15 @@ if run_12:
         """
         eligible = summary.loc[summary["eligible"]].copy()
         if eligible.empty:
-            raise ValueError("No grouped descriptors have scores from all requested models")
+            raise ValueError(
+                "No grouped descriptors have scores from all requested models"
+            )
         quotas = allocate_quotas(group_map, eligible, total)
         selected, examples = [], []
         categories = list(LEVELS)
-        for group_number, (group, reference) in enumerate(eligible.groupby("group", sort=True)):
+        for group_number, (group, reference) in enumerate(
+            eligible.groupby("group", sort=True)
+        ):
             for category in categories:
                 row = choose_descriptor(reference, reference, category).to_dict()
                 examples.append(dict(row, category=category))
@@ -2148,15 +2196,22 @@ if run_12:
                 selected.append(dict(row, category=category))
                 pool = pool.loc[pool["descriptor"] != row["descriptor"]]
         selected = pd.DataFrame(selected)
-        audit = pd.DataFrame({"group": list(group_map),
-                              "full_count": [len(set(v)) for v in group_map.values()]})
-        audit["eligible_count"] = audit["group"].map(eligible.groupby("group").size()).fillna(0).astype(int)
+        audit = pd.DataFrame(
+            {
+                "group": list(group_map),
+                "full_count": [len(set(v)) for v in group_map.values()],
+            }
+        )
+        audit["eligible_count"] = (
+            audit["group"].map(eligible.groupby("group").size()).fillna(0).astype(int)
+        )
         audit["selected_count"] = audit["group"].map(quotas)
         audit["full_fraction"] = audit["full_count"] / audit["full_count"].sum()
         audit["selected_fraction"] = audit["selected_count"] / len(selected)
-        audit["fraction_difference"] = audit["selected_fraction"] - audit["full_fraction"]
+        audit["fraction_difference"] = (
+            audit["selected_fraction"] - audit["full_fraction"]
+        )
         return selected, pd.DataFrame(examples), audit
-
 
     def run_selection(sources, group_map, output_dir, metric="r2", total=250):
         observations, manifest = load_performance(sources, metric)
@@ -2164,9 +2219,14 @@ if run_12:
         selected, examples, audit = select_panels(summary, group_map, total)
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        for name, frame in {"source_manifest": manifest, "descriptor_observations": observations,
-                            "descriptor_summary": summary, "selected_descriptors": selected,
-                            "per_group_examples": examples, "group_distribution": audit}.items():
+        for name, frame in {
+            "source_manifest": manifest,
+            "descriptor_observations": observations,
+            "descriptor_summary": summary,
+            "selected_descriptors": selected,
+            "per_group_examples": examples,
+            "group_distribution": audit,
+        }.items():
             frame.to_csv(output_dir / f"{name}.csv", index=False)
         (output_dir / "selected_descriptors.txt").write_text(
             "\n".join(selected["descriptor"]) + "\n", encoding="utf-8"
@@ -2182,7 +2242,9 @@ if run_12:
             "Per-group examples can overlap; the proportional selection is unique.\n",
             encoding="utf-8",
         )
-        print(f"Selected {len(selected)} of {summary['eligible'].sum()} eligible descriptors: {output_dir}")
+        print(
+            f"Selected {len(selected)} of {summary['eligible'].sum()} eligible descriptors: {output_dir}"
+        )
         if (manifest["status"] == "missing").any():
             print("Some experiments lack model CSVs; see source_manifest.csv.")
         return selected, summary, audit
