@@ -2256,18 +2256,67 @@ if run_12:
             "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_molformer-ibm/pred_mordred_tr_molformer-ibm.csv",
             "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_chemberta-dc/pred_mordred_tr_chemberta-dc.csv",
             "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_chemberta-sey/pred_mordred_tr_chemberta-sey.csv",
-            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_selformer/pred_mordred_tr_chemberta-dc.csv",
-
-
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_selformer/pred_mordred_tr_selformer.csv",
         ],
     }
     output_dir = Path(
         "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/mordred_descriptor_selection"
     )
-    run_selection(
+    metric = "r2"  # Higher is better; alternatively use "Pearson_r".
+    histogram_models = ["svr", "ridge"]  # Add "rf_fixed_hp" to compare all three.
+    histogram_bins = 30
+
+    selected, summary, audit = run_selection(
         sources=sources,
         group_map=getMordredGroups(),
         output_dir=output_dir,
-        metric="r2",  # Higher is better; alternatively use "Pearson_r".
+        metric=metric,
         total=250,  # Unique descriptors; group quotas follow full Mordred proportions.
     )
+
+    # Each descriptor contributes once per plotted model, using its mean score
+    # across that model's available training feature sets. Shared bins retain
+    # the full score range, including negative R2 values.
+    if histogram_models:
+        import matplotlib.pyplot as plt
+
+        if len(set(histogram_models)) != len(histogram_models):
+            raise ValueError("histogram_models must not contain duplicate models")
+        unknown = set(histogram_models) - set(sources)
+        if unknown:
+            raise ValueError(f"Unknown histogram models: {sorted(unknown)}")
+        distributions = [
+            selected[f"{model}_mean"].dropna().to_numpy()
+            for model in histogram_models
+        ]
+        bin_edges = np.histogram_bin_edges(
+            np.concatenate(distributions), bins=histogram_bins
+        )
+        labels = {"svr": "SVR", "ridge": "Ridge", "rf_fixed_hp": "RF (fixed HP)"}
+        colours = {"svr": "#4477AA", "ridge": "#EE6677", "rf_fixed_hp": "#228833"}
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.hist(
+            distributions,
+            bins=bin_edges,
+            stacked=True,
+            label=[f"{labels.get(model, model)} (n={len(values)})"
+                   for model, values in zip(histogram_models, distributions)],
+            color=[colours.get(model, "#999999") for model in histogram_models],
+            edgecolor="white",
+            linewidth=0.5,
+        )
+        ax.set_xlabel(f"Mean {metric} across training feature sets")
+        ax.set_ylabel("Descriptor–model count")
+        ax.set_title(f"Prediction performance of {len(selected)} selected Mordred descriptors")
+        ax.legend(title="Prediction model", frameon=False)
+        ax.spines[["top", "right"]].set_visible(False)
+        fig.tight_layout()
+        plot_path = output_dir / f"selected_descriptors_{metric}_stacked_histogram.png"
+        fig.savefig(plot_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        # Export separate (not cumulative) counts for each stacked component.
+        counts = pd.DataFrame({"bin_left": bin_edges[:-1], "bin_right": bin_edges[1:]})
+        for model, values in zip(histogram_models, distributions):
+            counts[model] = np.histogram(values, bins=bin_edges)[0]
+        counts.to_csv(plot_path.with_suffix(".csv"), index=False)
+        print(f"Saved: {plot_path}")
