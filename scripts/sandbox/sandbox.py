@@ -13,7 +13,8 @@ run_8 = False
 run_11 = False  # Mordred group importance across properties
 run_9 = False  # MoeType Pearson r SD across descriptors, excluding LabuteASA
 run_10 = False  # Property prediction comparison plot
-run_12 = True  # Group-balanced Mordred selection across SVR, ridge and fixed-HP RF
+run_12 = False  # Group-balanced Mordred selection across SVR, ridge and fixed-HP RF
+run_13 = True
 
 if any((run_1, run_2, run_3, run_4, run_5, run_6, run_7, run_8, run_11)):
     import matplotlib.pyplot as plt
@@ -2395,3 +2396,43 @@ if run_12:
             plt.close(fig)
             pd.DataFrame(count_rows).to_csv(plot_path.with_suffix(".csv"), index=False)
             print(f"Saved: {plot_path}")
+
+
+if run_13:
+    import numpy as np
+    import pandas as pd
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, "/users/yhb18174/TL_Project/scripts/src/visualisation")
+    from vis import Visualise
+
+    v = Visualise()
+
+    # Load full descriptor dataset
+    full_df = pd.read_csv(
+        "/users/yhb18174/TL_project/datasets/all/all_rdkit.csv"
+    )
+
+    # Randomly select 5,000 molecules
+    subset_df = full_df.sample(n=5000, random_state=42).copy()
+
+    # Run PCA
+    fig, pca_df, loadings_df, abs_loadings_df = v.plotPCA(
+        data_dict={
+            "Full dataset": full_df,
+            "Subset": subset_df,
+        },
+        n_components=3,
+        plot_scatter=True,
+        plot_area=True,
+        plot_loadings=False,
+        remove_outliers=False,
+        random_seed=42,
+        scale=True,
+        plot_title="PCA: Full Dataset vs Subset",
+        save_plot=True,
+        save_path=Path("./PCA_results"),
+        save_fname="full_vs_subset_PCA",
+        save_extra_data=True,
+    )
