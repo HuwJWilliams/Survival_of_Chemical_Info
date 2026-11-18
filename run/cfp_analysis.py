@@ -180,6 +180,14 @@ else:
 
         exp_dir = Path(cfp_dir[exp])
         exp_perf_df_path = resolveCFPPerformancePath(exp_dir, exp, args.model_name)
+
+        expected_path = exp_dir / args.model_name / f"{exp}.csv"
+        print(f"Pathing JSON: {PATHING_JSON_PATH}", flush=True)
+        print(f"Experiment directory: {exp_dir}", flush=True)
+        print(f"Expected model CSV: {expected_path}", flush=True)
+        print(f"Expected CSV exists: {expected_path.exists()}", flush=True)
+        print(f"Actually loading: {exp_perf_df_path}", flush=True)
+
         exp_perf_df = selectModelPerformance(
             pd.read_csv(exp_perf_df_path, index_col=0),
             model_name=args.model_name,
