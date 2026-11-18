@@ -2424,7 +2424,7 @@ if run_13:
 
     from pathlib import Path
 
-    vis_dir = Path("/users/yhb18174/TL_Project/scripts/src/visualisation")
+    vis_dir = Path("/users/yhb18174/TL_project/scripts/src/visualisation")
 
     print("Directory exists:", vis_dir.exists())
     print("Python files:", list(vis_dir.glob("*.py")))
