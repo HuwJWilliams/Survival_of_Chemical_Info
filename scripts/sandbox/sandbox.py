@@ -2448,7 +2448,7 @@ if run_13:
         scale=True,
         plot_title="PCA: Full Dataset vs Subset",
         save_plot=True,
-        save_path=Path("./PCA_results"),
+        save_path=Path("./"),
         save_fname="full_vs_subset_PCA",
         save_extra_data=True,
     )
