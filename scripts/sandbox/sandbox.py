@@ -2031,40 +2031,31 @@ if run_12:
     }
 
     def load_performance(sources, metric="r2"):
-        """sources maps model labels to (experiment root, model folder or None).
+        """Read explicit CSV paths or glob patterns configured for each model."""
+        from glob import glob
 
-        Only direct pred_mordred_tr_* experiments are read, never analysis or
-        averaged outputs. RF may use random_forest/ or legacy experiment CSVs.
-        Unlabelled CSVs are identified by these explicitly configured locations.
-        """
         rows, manifest = [], []
-        for model, (root, folder) in sources.items():
-            root = Path(root)
-            if not root.is_dir():
-                raise FileNotFoundError(f"Missing {model} results root: {root}")
-            for experiment in sorted(root.glob("pred_mordred_tr_*")):
-                if not experiment.is_dir():
-                    continue
-                train = experiment.name.removeprefix("pred_mordred_tr_")
+        for model, patterns in sources.items():
+            paths = set()
+            for pattern in patterns:
+                matches = [Path(p).resolve() for p in glob(str(pattern)) if Path(p).is_file()]
+                if not matches:
+                    manifest.append(dict(model=model, feature_set="", path=str(pattern),
+                                         status="missing", n_scores=0))
+                paths.update(matches)
+            seen_features = {}
+            for path in sorted(paths):
+                if path.suffix.lower() != ".csv" or not path.stem.startswith("pred_mordred_tr_"):
+                    raise ValueError(f"Expected a pred_mordred_tr_<feature>.csv file: {path}")
+                train = path.stem.removeprefix("pred_mordred_tr_")
                 if train == "avg" or train.startswith("avg_"):
                     continue
-                filename = f"{experiment.name}.csv"
-                path = (
-                    experiment / folder / filename if folder else experiment / filename
-                )
-                if not path.is_file() and model == "rf_fixed_hp":
-                    path = experiment / filename
-                if not path.is_file():
-                    manifest.append(
-                        dict(
-                            model=model,
-                            feature_set=train,
-                            path=str(path),
-                            status="missing",
-                            n_scores=0,
-                        )
+                if train in seen_features:
+                    raise ValueError(
+                        f"Multiple CSVs for {model}/{train}: {seen_features[train]} and {path}. "
+                        "Specify only the intended run in sources."
                     )
-                    continue
+                seen_features[train] = path
                 frame = pd.read_csv(path, index_col=0)
                 if "model" in frame:
                     expected = "random_forest" if model == "rf_fixed_hp" else model
@@ -2098,9 +2089,7 @@ if run_12:
                     for name, value in scores.items()
                 )
             if not any(row["model"] == model for row in rows):
-                raise ValueError(
-                    f"No finite regression {metric} scores for {model} in {root}"
-                )
+                raise ValueError(f"No finite regression {metric} scores for {model}; check sources: {patterns}")
         return pd.DataFrame(rows), pd.DataFrame(manifest)
 
     def summarise_performance(observations, group_map, models):
@@ -2249,19 +2238,36 @@ if run_12:
             print("Some experiments lack model CSVs; see source_manifest.csv.")
         return selected, summary, audit
 
-    # Explicit roots avoid relying on a paths.json entry pointing at the RF run.
-    results_root = Path(
-        "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions"
-    )
+    # Edit each list independently: exact CSV paths and wildcard patterns are accepted.
+    # No paths.json lookup or implicit model subdirectory is added.
+    # If two different files match the same model/feature set, narrow the patterns.
     sources = {
-        "svr": (results_root, "svr"),
-        "ridge": (results_root, "ridge"),
-        "rf_fixed_hp": (results_root / "rf_fixed_hp", "random_forest"),
+        "svr": [
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/pred_mordred_tr_maccs/svr/pred_mordred_tr_maccs.csv",
+        ],
+        "ridge": [
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/pred_mordred_tr_maccs/ridge/pred_mordred_tr_maccs.csv",
+        ],
+        "rf_fixed_hp": [
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_maccs/pred_mordred_tr_maccs.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_morgan/pred_mordred_tr_morgan.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_rdkit/pred_mordred_tr_rdkit.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_molformer-dc/pred_mordred_tr_molformer.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_molformer-ibm/pred_mordred_tr_molformer-ibm.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_chemberta-dc/pred_mordred_tr_chemberta-dc.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_chemberta-sey/pred_mordred_tr_chemberta-sey.csv",
+            "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/rf_fixed_hp/pred_mordred_tr_selformer/pred_mordred_tr_chemberta-dc.csv",
+
+
+        ],
     }
+    output_dir = Path(
+        "/users/yhb18174/TL_project/results/lipinski_embeddings_and_descriptor_predictions/mordred_descriptor_selection"
+    )
     run_selection(
         sources=sources,
         group_map=getMordredGroups(),
-        output_dir=results_root / "mordred_descriptor_selection",
+        output_dir=output_dir,
         metric="r2",  # Higher is better; alternatively use "Pearson_r".
         total=250,  # Unique descriptors; group quotas follow full Mordred proportions.
     )
